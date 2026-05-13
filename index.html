@@ -1,0 +1,1258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Consume & Grow</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #8fce00;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            touch-action: none; /* Prevents mobile scrolling while playing */
+        }
+        
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+
+        #ui-panel {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.4); /* Transparent dark background */
+            padding: 12px; /* Smaller padding */
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            width: 170px; /* Much smaller width */
+            pointer-events: none; /* Lets clicks pass through the background */
+            backdrop-filter: blur(4px);
+        }
+
+        h2 { margin: 0 0 10px 0; font-size: 14px; color: white; text-align: left; }
+        
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            font-weight: bold;
+            font-size: 12px; /* Smaller text */
+            margin-bottom: 6px;
+            color: #eee; /* Lighter text for dark background */
+        }
+
+        .stat-value { color: #ffde00; font-size: 13px; }
+
+        .control-group {
+            margin-top: 12px;
+            pointer-events: auto; /* Re-enable clicks for sliders */
+        }
+
+        .control-group label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: #ddd;
+            margin-bottom: 4px;
+            font-weight: 600;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+            accent-color: #ffde00;
+        }
+
+        button {
+            pointer-events: auto;
+            width: 100%;
+            padding: 8px; /* Smaller button padding */
+            margin-top: 10px;
+            background-color: #ff5e00;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px; /* Smaller button text */
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button:hover { background-color: #e05300; }
+        
+        #instructions {
+            position: absolute;
+            bottom: 30px;
+            width: 100%;
+            text-align: center;
+            color: white;
+            font-weight: bold;
+            font-size: 18px;
+            text-shadow: 1px 1px 4px rgba(0,0,0,0.5);
+            pointer-events: none;
+        }
+
+        #debug-controls {
+            display: none; /* Hidden by default */
+        }
+
+        #level-complete-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0,0,0,0.7);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            backdrop-filter: blur(5px);
+        }
+
+        .level-passed-text {
+            font-size: 70px;
+            color: #ffde00;
+            text-shadow: 0 5px 15px rgba(0,0,0,0.5), 0 0 20px #ff7300;
+            margin-bottom: 40px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            transform: scale(0);
+            opacity: 0;
+            animation: popIn 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        @keyframes popIn {
+            to { transform: scale(1) rotate(-2deg); opacity: 1; }
+        }
+
+        .buttons-row {
+            display: flex;
+            gap: 20px;
+            transform: translateY(50px);
+            opacity: 0;
+            animation: slideUp 0.6s ease forwards 0.4s;
+        }
+
+        @keyframes slideUp {
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .stylized-btn {
+            padding: 15px 30px;
+            font-size: 22px;
+            border-radius: 12px;
+            border: 3px solid white;
+            cursor: pointer;
+            font-weight: bold;
+            text-transform: uppercase;
+            box-shadow: 0 8px 15px rgba(0,0,0,0.3);
+            transition: all 0.2s;
+        }
+
+        .restart-btn { background-color: #ff5e00; color: white; }
+        .restart-btn:hover { background-color: #e05300; transform: scale(1.05); }
+        .next-btn { background-color: #8fce00; color: white; }
+        .next-btn:hover { background-color: #7ab300; transform: scale(1.05); }
+    </style>
+    <!-- Import Three.js and Cannon.js via CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+
+    <div id="ui-panel">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; pointer-events: auto;">
+            <h2 id="level-title-display" style="margin: 0; font-size: 14px; color: white;">Level 1: Playground</h2>
+            <div id="menu-toggle" style="cursor: pointer; font-size: 14px; padding: 0 5px; color: white;">&#9660;</div>
+        </div>
+        
+        <button id="restart-btn" style="margin-top: 0px; margin-bottom: 8px;">Restart Level</button>
+        
+        <div id="ui-body" style="display: none; pointer-events: auto;">
+            <div class="stat-row">
+                <span>Cubes Eaten:</span>
+                <span id="score-display" class="stat-value">0</span>
+            </div>
+            <div class="stat-row">
+                <span>Size Level:</span>
+                <span id="level-display" class="stat-value">1</span>
+            </div>
+
+            <div id="debug-controls">
+                <div class="control-group">
+                    <label>
+                        <span>Scale Threshold</span>
+                        <span id="threshold-val">20 cubes</span>
+                    </label>
+                    <input type="range" id="threshold-slider" min="5" max="150" step="1" value="20">
+                </div>
+
+                <div class="control-group">
+                    <label>
+                        <span>Scale Multiplier</span>
+                        <span id="multiplier-val">1.10x</span>
+                    </label>
+                    <input type="range" id="multiplier-slider" min="1.05" max="2.0" step="0.05" value="1.1">
+                </div>
+                
+                <button id="debug-next-btn" style="background-color: #7ab300; padding: 6px; font-size: 11px; margin-top: 15px;">Force Next Level</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="instructions">Drag your mouse or finger to move the hole!</div>
+
+    <div id="level-complete-overlay">
+        <h1 class="level-passed-text">Level Passed!</h1>
+        <div class="buttons-row">
+            <button id="overlay-restart-btn" class="stylized-btn restart-btn">Restart Level</button>
+            <button id="overlay-next-btn" class="stylized-btn next-btn">Next Level</button>
+        </div>
+    </div>
+
+    <script>
+        // --- Game Variables ---
+        let scene, camera, renderer, world;
+        let groundMesh, groundBody, holeMesh;
+        let cubes = [];
+        let decorations = []; // For non-eatable objects like runways or roads
+        let mouse = new THREE.Vector2();
+        let raycaster = new THREE.Raycaster();
+        let groundPlane; // Mathematical plane for raycasting
+        
+        // Gameplay Stats
+        let isPlaying = true;
+        let score = 0;
+        let sizeLevel = 1;
+        let baseRadius = 0.5; // VERY SMALL INITIAL SIZE
+        let currentRadius = baseRadius;
+        let lastScaleScore = 0;
+        
+        // Dynamic Level Management System
+        let currentLevelIndex = 0; 
+
+        // Constants
+        const CUBE_GROUP = 1;
+        const GROUND_GROUP = 2;
+
+        window.onload = function() {
+            initEngine();
+            setupUI();
+            startLevel();
+            animate();
+        };
+
+        function initEngine() {
+            // 1. THREE.JS SETUP
+            const container = document.getElementById('canvas-container');
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x8fce00); // Bright green ground
+            scene.fog = new THREE.Fog(0x8fce00, 20, 60);
+
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 25, 20); // Top-down angled view
+            camera.lookAt(0, 0, 0);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(10, 30, 10);
+            dirLight.castShadow = true;
+            dirLight.shadow.mapSize.width = 1024;
+            dirLight.shadow.mapSize.height = 1024;
+            dirLight.shadow.camera.left = -20;
+            dirLight.shadow.camera.right = 20;
+            dirLight.shadow.camera.top = 20;
+            dirLight.shadow.camera.bottom = -20;
+            scene.add(dirLight);
+
+            // 2. CANNON.JS SETUP (Physics)
+            world = new CANNON.World();
+            world.gravity.set(0, -9.82, 0); // Earth gravity
+            world.broadphase = new CANNON.NaiveBroadphase();
+            world.solver.iterations = 20;
+
+            // Physics Materials (REDUCED BOUNCINESS TO PREVENT EXPLOSIONS)
+            const physicsMaterial = new CANNON.Material("standard");
+            const physicsContactMaterial = new CANNON.ContactMaterial(
+                physicsMaterial, physicsMaterial, 
+                { friction: 0.6, restitution: 0.0 } // 0.0 restitution means zero bounce
+            );
+            world.addContactMaterial(physicsContactMaterial);
+
+            // 3. THE GROUND
+            // Visual Ground
+            const groundGeo = new THREE.PlaneGeometry(200, 200);
+            const groundMat = new THREE.MeshLambertMaterial({ color: 0x8fce00 });
+            groundMesh = new THREE.Mesh(groundGeo, groundMat);
+            groundMesh.rotation.x = -Math.PI / 2;
+            groundMesh.receiveShadow = true;
+            scene.add(groundMesh);
+
+            // Physics Ground
+            const groundShape = new CANNON.Plane();
+            groundBody = new CANNON.Body({ mass: 0, material: physicsMaterial });
+            groundBody.addShape(groundShape);
+            groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
+            groundBody.collisionFilterGroup = GROUND_GROUP;
+            world.addBody(groundBody);
+
+            // 4. THE HOLE (Visual)
+            const holeGeo = new THREE.CircleGeometry(1, 32);
+            const holeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+            holeMesh = new THREE.Mesh(holeGeo, holeMat);
+            holeMesh.rotation.x = -Math.PI / 2;
+            holeMesh.position.y = 0.08; // Above decorations, no Z-fighting
+            holeMesh.renderOrder = 10; // Draw after ground and decorations
+            holeMesh.scale.set(currentRadius, currentRadius, 1);
+            scene.add(holeMesh);
+
+            // Mathematical plane for mouse raycasting
+            groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+
+            // Event Listeners for Interaction
+            window.addEventListener('resize', onWindowResize);
+            document.addEventListener('mousemove', onPointerMove);
+            document.addEventListener('touchmove', onPointerMove, { passive: false });
+        }
+
+        function setupUI() {
+            const thresholdSlider = document.getElementById('threshold-slider');
+            const thresholdVal = document.getElementById('threshold-val');
+            thresholdSlider.addEventListener('input', (e) => {
+                thresholdVal.innerText = `${e.target.value} cubes`;
+            });
+
+            const multiplierSlider = document.getElementById('multiplier-slider');
+            const multiplierVal = document.getElementById('multiplier-val');
+            multiplierSlider.addEventListener('input', (e) => {
+                multiplierVal.innerText = `${parseFloat(e.target.value).toFixed(2)}x`;
+            });
+
+            document.getElementById('restart-btn').addEventListener('click', startLevel);
+
+            // Menu Toggle Logic (Fixed)
+            const menuToggle = document.getElementById('menu-toggle');
+            const uiBody = document.getElementById('ui-body');
+            menuToggle.addEventListener('click', () => {
+                if (uiBody.style.display === 'none' || uiBody.style.display === '') {
+                    uiBody.style.display = 'block';
+                    menuToggle.innerHTML = '&#9650;';
+                } else {
+                    uiBody.style.display = 'none';
+                    menuToggle.innerHTML = '&#9660;';
+                }
+            });
+
+            // Secret Keyboard Shortcut for Sliders (Ctrl + L)
+            window.addEventListener('keydown', (e) => {
+                if (e.ctrlKey && (e.key === 'l' || e.key === 'L')) {
+                    e.preventDefault();
+                    const debugPanel = document.getElementById('debug-controls');
+                    
+                    // Toggle debug panel, and forcefully open the parent menu if it was closed
+                    if (debugPanel.style.display === 'none' || debugPanel.style.display === '') {
+                        uiBody.style.display = 'block';
+                        menuToggle.innerHTML = '&#9650;';
+                        debugPanel.style.display = 'block';
+                    } else {
+                        debugPanel.style.display = 'none';
+                    }
+                }
+            });
+
+            // Level Complete Overlay Buttons
+            document.getElementById('overlay-restart-btn').addEventListener('click', startLevel);
+            document.getElementById('overlay-next-btn').addEventListener('click', () => {
+                currentLevelIndex++;
+                if (currentLevelIndex >= levels.length) {
+                    alert("You've beaten all available levels! Looping back to the start.");
+                    currentLevelIndex = 0;
+                }
+                startLevel();
+            });
+
+            // Debug Menu Next Level Button
+            document.getElementById('debug-next-btn').addEventListener('click', () => {
+                currentLevelIndex++;
+                if (currentLevelIndex >= levels.length) {
+                    alert("You've beaten all available levels! Looping back to the start.");
+                    currentLevelIndex = 0;
+                }
+                startLevel();
+            });
+        }
+
+        function onPointerMove(event) {
+            let clientX = event.clientX;
+            let clientY = event.clientY;
+            
+            if (event.touches && event.touches.length > 0) {
+                clientX = event.touches[0].clientX;
+                clientY = event.touches[0].clientY;
+            }
+
+            mouse.x = (clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(clientY / window.innerHeight) * 2 + 1;
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function startLevel() {
+            let levelData = levels[currentLevelIndex];
+
+            // Reset Stats
+            isPlaying = true;
+            score = 0;
+            sizeLevel = 1;
+            lastScaleScore = 0;
+            currentRadius = baseRadius;
+            
+            // Update UI & Environment Dynamically
+            document.getElementById('level-title-display').innerText = `Level ${currentLevelIndex + 1}: ${levelData.title}`;
+            scene.background.setHex(levelData.bgColor);
+            scene.fog.color.setHex(levelData.bgColor);
+            groundMesh.material.color.setHex(levelData.bgColor);
+
+            updateUI();
+            
+            // Hide Overlay if it was open
+            document.getElementById('level-complete-overlay').style.display = 'none';
+
+            holeMesh.scale.set(currentRadius, currentRadius, 1);
+
+            // Clear old cubes
+            cubes.forEach(c => {
+                scene.remove(c.mesh);
+                world.remove(c.body);
+            });
+            cubes = [];
+
+            // Clear decorations (non-eatable environment)
+            decorations.forEach(d => scene.remove(d));
+            decorations = [];
+
+            // Call the specific builder function for this level
+            levelData.buildFunc();
+
+            // Set the explicitly tuned scale threshold for this level
+            let thresholdSlider = document.getElementById('threshold-slider');
+            thresholdSlider.value = levelData.threshold;
+            document.getElementById('threshold-val').innerText = `${levelData.threshold} cubes`;
+        }
+
+        // Shared Geometry and Shape to improve web performance with many blocks
+        const cubeSize = 0.4;
+        const spacing = 0.42;
+        const boxGeo = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
+        const boxShape = new CANNON.Box(new CANNON.Vec3(cubeSize/2, cubeSize/2, cubeSize/2));
+
+        // Large Geometry to drastically improve performance on big structures
+        const mMult = 3; // 3x bigger = 27x fewer blocks per volume
+        const mSpacing = spacing * mMult;
+        const mCubeSize = cubeSize * mMult;
+        const largeBoxGeo = new THREE.BoxGeometry(mCubeSize, mCubeSize, mCubeSize);
+        const largeBoxShape = new CANNON.Box(new CANNON.Vec3(mCubeSize/2, mCubeSize/2, mCubeSize/2));
+
+        const materials = {
+            // Level 1
+            wood: new THREE.MeshLambertMaterial({ color: 0x8B4513 }),
+            sand: new THREE.MeshLambertMaterial({ color: 0xEEDD82 }),
+            slideBlue: new THREE.MeshLambertMaterial({ color: 0x4682B4 }),
+            slideRed: new THREE.MeshLambertMaterial({ color: 0xFF4500 }),
+            leaves: new THREE.MeshLambertMaterial({ color: 0x228B22 }),
+            trunk: new THREE.MeshLambertMaterial({ color: 0x5C4033 }),
+            gym1: new THREE.MeshLambertMaterial({ color: 0xFFD700 }),
+            gym2: new THREE.MeshLambertMaterial({ color: 0xFF69B4 }),
+            blackRubber: new THREE.MeshLambertMaterial({ color: 0x222222 }),
+            metalGray: new THREE.MeshLambertMaterial({ color: 0x999999 }),
+            
+            // Level 2 (Airplanes / Airport)
+            planeWhite: new THREE.MeshLambertMaterial({ color: 0xFAFAFA }),
+            planeRed: new THREE.MeshLambertMaterial({ color: 0xCC0000 }),
+            planeBlue: new THREE.MeshLambertMaterial({ color: 0x0055AA }),
+            glassBlue: new THREE.MeshLambertMaterial({ color: 0x88CCFF }),
+            towerGray: new THREE.MeshLambertMaterial({ color: 0x999999 }),
+            engineBlack: new THREE.MeshLambertMaterial({ color: 0x222222 }),
+            heliGreen: new THREE.MeshLambertMaterial({ color: 0x4A5D23 }),
+
+            // Level 3 (Cyberpunk)
+            darkBuilding: new THREE.MeshLambertMaterial({ color: 0x111115 }),
+            windowGlow: new THREE.MeshBasicMaterial({ color: 0xFFFF88 }),
+            neonPink: new THREE.MeshBasicMaterial({ color: 0xFF00FF }),
+            neonCyan: new THREE.MeshBasicMaterial({ color: 0x00FFFF }),
+            neonPurple: new THREE.MeshBasicMaterial({ color: 0x8A2BE2 }),
+
+            // Level 4 (Battlefield)
+            sandDark: new THREE.MeshLambertMaterial({ color: 0xC2B280 }),
+            camoGreen: new THREE.MeshLambertMaterial({ color: 0x4B5320 }),
+            tankTreads: new THREE.MeshLambertMaterial({ color: 0x2F4F4F }),
+            missileGray: new THREE.MeshLambertMaterial({ color: 0x708090 }),
+            missileRed: new THREE.MeshLambertMaterial({ color: 0x8B0000 }),
+
+            // Level 5 (Sugar Rush / Candyland)
+            cakeChoco: new THREE.MeshLambertMaterial({ color: 0x4B3621 }),
+            cakeVanilla: new THREE.MeshLambertMaterial({ color: 0xF3E5AB }),
+            frostingPink: new THREE.MeshLambertMaterial({ color: 0xFF69B4 }),
+            coneWafer: new THREE.MeshLambertMaterial({ color: 0xD2B48C }),
+            candyRed: new THREE.MeshLambertMaterial({ color: 0xFF0000 }),
+            candyCyan: new THREE.MeshLambertMaterial({ color: 0x00FFFF }),
+            candyPurple: new THREE.MeshLambertMaterial({ color: 0x9370DB }),
+            stickWhite: new THREE.MeshLambertMaterial({ color: 0xFFFFFF })
+        };
+
+        function spawnCube(x, y, z, material) {
+            let mesh = new THREE.Mesh(boxGeo, material);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            scene.add(mesh);
+
+            // PERFORMANCE: Lighter mass and start entirely STATIC so nothing falls apart early
+            let body = new CANNON.Body({ mass: 0, type: CANNON.Body.STATIC }); 
+            body.addShape(boxShape);
+            body.position.set(x, y, z);
+            
+            // PHYSICS DAMPENING: Slows down blocks so they don't fly off the map
+            body.linearDamping = 0.5;
+            body.angularDamping = 0.5;
+            
+            body.collisionFilterGroup = CUBE_GROUP;
+            body.collisionFilterMask = CUBE_GROUP | GROUND_GROUP;
+            world.addBody(body);
+
+            cubes.push({
+                mesh: mesh,
+                body: body,
+                isFalling: false,
+                isLargeBlock: false
+            });
+        }
+
+        function spawnLargeCube(x, y, z, material) {
+            let mesh = new THREE.Mesh(largeBoxGeo, material);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            scene.add(mesh);
+
+            // STATIC start, heavier mass when awakened
+            let body = new CANNON.Body({ mass: 0, type: CANNON.Body.STATIC }); 
+            body.addShape(largeBoxShape);
+            body.position.set(x, y, z);
+            
+            // PHYSICS DAMPENING
+            body.linearDamping = 0.6;
+            body.angularDamping = 0.6;
+            
+            body.collisionFilterGroup = CUBE_GROUP;
+            body.collisionFilterMask = CUBE_GROUP | GROUND_GROUP;
+            world.addBody(body);
+
+            cubes.push({
+                mesh: mesh,
+                body: body,
+                isFalling: false,
+                isLargeBlock: true
+            });
+        }
+
+        function spawnDecorationTexturedPlane(x, y, z, width, depth, colorCode) {
+            const geo = new THREE.PlaneGeometry(width, depth);
+            const mat = new THREE.MeshBasicMaterial({ color: colorCode });
+            let mesh = new THREE.Mesh(geo, mat);
+            mesh.rotation.x = -Math.PI / 2;
+            mesh.position.set(x, y, z); // Keep y very low to prevent physics block issues
+            mesh.renderOrder = 1; // Render before the hole
+            scene.add(mesh);
+            decorations.push(mesh);
+        }
+
+        // ==========================================
+        // LEVEL MANAGER CONFIGURATION
+        // ==========================================
+        const levels = [
+            {
+                title: "Playground",
+                bgColor: 0x8fce00, // Grass green
+                buildFunc: buildPlayground,
+                threshold: 15 // Specifically tuned
+            },
+            {
+                title: "Airport",
+                bgColor: 0x4a4a4a, // Tarmac gray
+                buildFunc: buildAirport,
+                threshold: 20 // Specifically tuned
+            },
+            {
+                title: "Cyberpunk City",
+                bgColor: 0x2a3040, // Gray-blueish night sky
+                buildFunc: buildCity,
+                threshold: 25 // Specifically tuned
+            },
+            {
+                title: "Battlefield",
+                bgColor: 0xE6D0AB, // Desert sand color
+                buildFunc: buildBattlefield,
+                threshold: 30 // Specifically tuned
+            },
+            {
+                title: "Sugar Rush",
+                bgColor: 0xFFB6C1, // Light pink frosting background
+                buildFunc: buildCandyland,
+                threshold: 21 // Specifically tuned for Sugar Rush
+            }
+        ];
+
+        // ==========================================
+        // LEVEL 1: PLAYGROUND BUILDERS
+        // ==========================================
+        function buildPlayground() {
+            buildSandbox(-6, 0, -6);
+            buildSlide(2, 0, 2);
+            buildTree(-7, 0, 6);
+            buildTree(8, 0, -5);
+            buildPyramid(5, 0, 4);
+            buildSwingSet(-2, 0, -2);
+            buildSeesaw(-2, 0, 5);
+            buildToyCar(4, 0, -4);
+        }
+
+        function buildSandbox(offsetX, offsetY, offsetZ) {
+            for(let x = 0; x < 8; x++) {
+                for(let z = 0; z < 8; z++) {
+                    let isBorder = (x === 0 || x === 7 || z === 0 || z === 7);
+                    let posX = offsetX + x * spacing;
+                    let posZ = offsetZ + z * spacing;
+                    
+                    if (isBorder) {
+                        spawnCube(posX, offsetY + 0.5, posZ, materials.wood);
+                        spawnCube(posX, offsetY + 0.5 + spacing, posZ, materials.wood);
+                    } else {
+                        spawnCube(posX, offsetY + 0.5, posZ, materials.sand);
+                    }
+                }
+            }
+        }
+
+        function buildSlide(offsetX, offsetY, offsetZ) {
+            for(let z = 0; z < 3; z++) {
+                for(let x = 0; x < 10; x++) {
+                    let posX = offsetX + x * spacing;
+                    let posZ = offsetZ + z * spacing;
+
+                    if (x < 2) {
+                        for(let y = 0; y < 6; y++) spawnCube(posX, offsetY + 0.5 + y * spacing, posZ, materials.slideBlue);
+                    } else if (x >= 2 && x < 4) {
+                        spawnCube(posX, offsetY + 0.5 + 5 * spacing, posZ, materials.slideBlue);
+                    } else {
+                        let slopeHeight = Math.floor(5 - (x - 4) * (5 / 6));
+                        if(slopeHeight >= 0) spawnCube(posX, offsetY + 0.5 + slopeHeight * spacing, posZ, materials.slideRed);
+                    }
+                }
+            }
+        }
+
+        function buildTree(offsetX, offsetY, offsetZ) {
+            for(let y = 0; y < 5; y++) {
+                for(let x = 0; x < 2; x++) {
+                    for(let z = 0; z < 2; z++) {
+                        spawnCube(offsetX + x * spacing, offsetY + 0.5 + y * spacing, offsetZ + z * spacing, materials.trunk);
+                    }
+                }
+            }
+            for(let y = 5; y < 9; y++) {
+                let w = y === 8 ? 2 : 4; 
+                let offset = y === 8 ? 0 : -1;
+                for(let x = 0; x < w; x++) {
+                    for(let z = 0; z < w; z++) {
+                        if (y !== 8 && ((x===0&&z===0) || (x===0&&z===w-1) || (x===w-1&&z===0) || (x===w-1&&z===w-1))) continue;
+                        spawnCube(offsetX + offset * spacing + x * spacing, offsetY + 0.5 + y * spacing, offsetZ + offset * spacing + z * spacing, materials.leaves);
+                    }
+                }
+            }
+        }
+
+        function buildPyramid(offsetX, offsetY, offsetZ) {
+            let layers = 4;
+            for(let y = 0; y < layers; y++) {
+                let size = (layers - y) * 2;
+                let mat = y % 2 === 0 ? materials.gym1 : materials.gym2;
+                for(let x = 0; x < size; x++) {
+                    for(let z = 0; z < size; z++) {
+                        // Reverted to beautifully detailed small blocks
+                        spawnCube(offsetX + x * spacing + y * spacing, offsetY + 0.5 + y * spacing, offsetZ + z * spacing + y * spacing, mat);
+                    }
+                }
+            }
+        }
+
+        function buildSwingSet(offsetX, offsetY, offsetZ) {
+            // Poles
+            for(let y=0; y<6; y++) {
+                spawnCube(offsetX - 3*spacing, offsetY + 0.5 + y*spacing, offsetZ, materials.metalGray);
+                spawnCube(offsetX + 3*spacing, offsetY + 0.5 + y*spacing, offsetZ, materials.metalGray);
+            }
+            // Top Bar
+            for(let x=-2; x<=2; x++) {
+                spawnCube(offsetX + x*spacing, offsetY + 0.5 + 5*spacing, offsetZ, materials.slideRed);
+            }
+            // Swing Chains & Seats
+            for(let y=2; y<5; y++) {
+                spawnCube(offsetX - 1.5*spacing, offsetY + 0.5 + y*spacing, offsetZ, materials.metalGray);
+                spawnCube(offsetX + 1.5*spacing, offsetY + 0.5 + y*spacing, offsetZ, materials.metalGray);
+            }
+            // Seats
+            spawnCube(offsetX - 1.5*spacing, offsetY + 0.5 + 1*spacing, offsetZ, materials.wood);
+            spawnCube(offsetX + 1.5*spacing, offsetY + 0.5 + 1*spacing, offsetZ, materials.wood);
+        }
+
+        function buildSeesaw(offsetX, offsetY, offsetZ) {
+            // Fulcrum
+            spawnCube(offsetX, offsetY + 0.5, offsetZ, materials.gym1);
+            spawnCube(offsetX, offsetY + 0.5 + spacing, offsetZ, materials.gym1);
+            // Board
+            for(let x=-3; x<=3; x++) {
+                spawnCube(offsetX + x*spacing, offsetY + 0.5 + 2*spacing, offsetZ, materials.wood);
+            }
+        }
+
+        function buildToyCar(offsetX, offsetY, offsetZ) {
+            // body
+            for(let x=0; x<3; x++) {
+                for(let z=0; z<2; z++) {
+                    spawnCube(offsetX + x*spacing, offsetY + 0.5 + spacing, offsetZ + z*spacing, materials.slideBlue);
+                }
+            }
+            // top
+            spawnCube(offsetX + 1*spacing, offsetY + 0.5 + 2*spacing, offsetZ, materials.slideRed);
+            spawnCube(offsetX + 1*spacing, offsetY + 0.5 + 2*spacing, offsetZ + spacing, materials.slideRed);
+            // wheels
+            spawnCube(offsetX, offsetY + 0.5, offsetZ - spacing, materials.blackRubber);
+            spawnCube(offsetX + 2*spacing, offsetY + 0.5, offsetZ - spacing, materials.blackRubber);
+            spawnCube(offsetX, offsetY + 0.5, offsetZ + 2*spacing, materials.blackRubber);
+            spawnCube(offsetX + 2*spacing, offsetY + 0.5, offsetZ + 2*spacing, materials.blackRubber);
+        }
+
+        // ==========================================
+        // LEVEL 2: AIRPORT BUILDERS
+        // ==========================================
+        function buildAirport() {
+            // Un-eatable decorative runway
+            spawnDecorationTexturedPlane(-2, 0.01, 0, 8, 50, 0x222222); // Dark asphalt
+            for (let z = -20; z < 20; z += 4) {
+                spawnDecorationTexturedPlane(-2, 0.02, z, 0.6, 2, 0xFFFFFF); // White dashed lines
+            }
+
+            buildControlTower(8, 0, -8);
+            
+            // Scatter 747 Airplanes (Reverted to detailed versions)
+            buildBoeing747(-3, 0, -5, materials.planeBlue); // Plane 1 on runway
+            buildBoeing747(6, 0, 5, materials.planeRed);    // Plane 2 parked
+            
+            // Scatter Helicopters
+            buildHelicopter(-7, 0, 8);
+            buildHelicopter(-9, 0, 3);
+        }
+
+        function buildControlTower(offsetX, offsetY, offsetZ) {
+            // Tower Base
+            for(let y = 0; y < 8; y++) {
+                for(let x = 0; x < 3; x++) {
+                    for(let z = 0; z < 3; z++) {
+                        spawnCube(offsetX + x * spacing, offsetY + 0.5 + y * spacing, offsetZ + z * spacing, materials.towerGray);
+                    }
+                }
+            }
+            // Control Cab (Glass Top)
+            for(let y = 8; y < 10; y++) {
+                for(let x = -1; x < 4; x++) {
+                    for(let z = -1; z < 4; z++) {
+                        if (x > 0 && x < 2 && z > 0 && z < 2) continue; 
+                        spawnCube(offsetX + x * spacing, offsetY + 0.5 + y * spacing, offsetZ + z * spacing, materials.glassBlue);
+                    }
+                }
+            }
+            // Roof & Antenna
+            for(let x = -1; x < 4; x++) {
+                for(let z = -1; z < 4; z++) {
+                    spawnCube(offsetX + x * spacing, offsetY + 0.5 + 10 * spacing, offsetZ + z * spacing, materials.towerGray);
+                }
+            }
+            spawnCube(offsetX + 1 * spacing, offsetY + 0.5 + 11 * spacing, offsetZ + 1 * spacing, materials.planeRed);
+            spawnCube(offsetX + 1 * spacing, offsetY + 0.5 + 12 * spacing, offsetZ + 1 * spacing, materials.planeRed);
+        }
+
+        function buildBoeing747(offsetX, offsetY, offsetZ, accentMat) {
+            // Huge Fuselage with Hump (Reverted to detailed hollow structure)
+            for(let x = 0; x < 15; x++) {
+                for(let y = 1; y < 4; y++) {
+                    for(let z = 0; z < 3; z++) {
+                        // Hollow center to save physics calculations
+                        if (x > 1 && x < 13 && y === 2 && z === 1) continue;
+                        
+                        let mat = materials.planeWhite;
+                        if (x === 0 && y === 2) mat = materials.glassBlue; // Cockpit nose
+                        if (x > 12) mat = accentMat; // Tail coloring
+
+                        spawnCube(offsetX + x * spacing, offsetY + 0.5 + y * spacing, offsetZ + z * spacing, mat);
+                    }
+                }
+            }
+            
+            // The 747 Hump (Cockpit / Upper deck)
+            for(let x = 2; x < 6; x++) {
+                for(let z = 0; z < 3; z++) {
+                    let mat = materials.planeWhite;
+                    if(x === 2) mat = materials.glassBlue; // Upper cockpit glass
+                    spawnCube(offsetX + x * spacing, offsetY + 0.5 + 4 * spacing, offsetZ + z * spacing, mat);
+                }
+            }
+
+            // Swept Wings & Engines
+            for(let x = 5; x < 10; x++) {
+                // Left Wing sweep
+                let leftZ = -(x - 4); 
+                for(let z = leftZ; z < 0; z++) {
+                    spawnCube(offsetX + x * spacing, offsetY + 0.5 + 1 * spacing, offsetZ + z * spacing, materials.planeWhite);
+                }
+                // Right Wing sweep
+                let rightZ = 2 + (x - 4);
+                for(let z = 3; z <= rightZ; z++) {
+                    spawnCube(offsetX + x * spacing, offsetY + 0.5 + 1 * spacing, offsetZ + z * spacing, materials.planeWhite);
+                }
+                
+                // Add 4 Engines total
+                if (x === 6 || x === 8) {
+                    spawnCube(offsetX + x * spacing, offsetY + 0.5 + 0 * spacing, offsetZ + (leftZ + 1) * spacing, materials.engineBlack);
+                    spawnCube(offsetX + x * spacing, offsetY + 0.5 + 0 * spacing, offsetZ + (rightZ - 1) * spacing, materials.engineBlack);
+                }
+            }
+
+            // Tail Fin (Vertical & Horizontal)
+            for(let x = 12; x < 15; x++) {
+                // Vertical
+                for(let y = 4; y < 7; y++) {
+                    if (x - 11 >= y - 3) { // Slant
+                        spawnCube(offsetX + x * spacing, offsetY + 0.5 + y * spacing, offsetZ + 1 * spacing, accentMat);
+                    }
+                }
+                // Horizontal stabilizers
+                spawnCube(offsetX + x * spacing, offsetY + 0.5 + 2 * spacing, offsetZ - 1 * spacing, materials.planeWhite);
+                spawnCube(offsetX + x * spacing, offsetY + 0.5 + 2 * spacing, offsetZ + 3 * spacing, materials.planeWhite);
+            }
+        }
+
+        function buildHelicopter(offsetX, offsetY, offsetZ) {
+            // Cabin
+            for(let x=0; x<4; x++) {
+                for(let y=1; y<4; y++) {
+                    for(let z=0; z<3; z++) {
+                        let mat = materials.heliGreen;
+                        if(x===0 && y===2) mat = materials.glassBlue;
+                        spawnCube(offsetX + x * spacing, offsetY + 0.5 + y * spacing, offsetZ + z * spacing, mat);
+                    }
+                }
+            }
+            // Tail Boom
+            for(let x=4; x<9; x++) {
+                spawnCube(offsetX + x * spacing, offsetY + 0.5 + 2 * spacing, offsetZ + 1 * spacing, materials.heliGreen);
+            }
+            // Tail Rotor
+            spawnCube(offsetX + 8 * spacing, offsetY + 0.5 + 3 * spacing, offsetZ + 1 * spacing, materials.engineBlack);
+            spawnCube(offsetX + 8 * spacing, offsetY + 0.5 + 1 * spacing, offsetZ + 1 * spacing, materials.engineBlack);
+            
+            // Main Rotor Shaft & Blades
+            spawnCube(offsetX + 2 * spacing, offsetY + 0.5 + 4 * spacing, offsetZ + 1 * spacing, materials.towerGray);
+            for(let i=-2; i<=6; i++) { // Length of blade
+                spawnCube(offsetX + i * spacing, offsetY + 0.5 + 5 * spacing, offsetZ + 1 * spacing, materials.engineBlack);
+                spawnCube(offsetX + 2 * spacing, offsetY + 0.5 + 5 * spacing, offsetZ + (i-1) * spacing, materials.engineBlack);
+            }
+        }
+
+        // ==========================================
+        // LEVEL 3: CYBERPUNK CITY BUILDERS
+        // ==========================================
+        function buildCity() {
+            // Neon Street Grids (Decorations)
+            spawnDecorationTexturedPlane(0, 0.01, 0, 30, 30, 0x2a3040); // Gray-blueish ground
+            for (let i = -10; i <= 10; i += 5) {
+                spawnDecorationTexturedPlane(i, 0.02, 0, 0.2, 30, 0xFF00FF); // Pink horizontal grid
+                spawnDecorationTexturedPlane(0, 0.02, i, 30, 0.2, 0x00FFFF); // Cyan vertical grid
+            }
+
+            // Skyscrapers (Reverted back to highly detailed small cubes)
+            buildSkyscraper(-8, 0, -8, 5, 5, 12, materials.neonPink);
+            buildSkyscraper(4, 0, -6, 4, 4, 18, materials.neonCyan);
+            buildSkyscraper(-6, 0, 6, 6, 4, 10, materials.neonPurple);
+            buildSkyscraper(6, 0, 5, 5, 5, 15, materials.neonCyan);
+            
+            // Central lower building
+            buildSkyscraper(-1, 0, -1, 4, 4, 6, materials.neonPink);
+        }
+
+        function buildSkyscraper(offsetX, offsetY, offsetZ, widthL, depthL, heightL, accentMat) {
+            for(let y = 0; y < heightL; y++) {
+                for(let x = 0; x < widthL; x++) {
+                    for(let z = 0; z < depthL; z++) {
+                        // Crucial performance optimization: Hollow out skyscrapers
+                        if (x > 0 && x < widthL - 1 && z > 0 && z < depthL - 1) continue;
+
+                        let mat = materials.darkBuilding;
+                        
+                        // Add glowing windows or neon bands
+                        if (y > 0 && y % 4 === 0) {
+                            mat = accentMat; // Neon accent rings
+                        } else if (y % 2 !== 0 && (x === 1 || x === widthL - 2 || z === 1 || z === depthL - 2)) {
+                            mat = materials.windowGlow; // Lit windows
+                        }
+
+                        spawnCube(offsetX + x * spacing, offsetY + 0.5 + y * spacing, offsetZ + z * spacing, mat);
+                    }
+                }
+            }
+        }
+
+        // ==========================================
+        // LEVEL 4: BATTLEFIELD BUILDERS
+        // ==========================================
+        function buildBattlefield() {
+            // Scatter Desert Mountains randomly (Uses fewer, much bigger blocks for performance)
+            buildMountain(-12, 0, -12, 3);
+            buildMountain(8, 0, -10, 3);
+            buildMountain(-10, 0, 8, 2);
+            buildMountain(10, 0, 10, 4);
+            buildMountain(0, 0, -14, 2);
+            buildMountain(-2, 0, 12, 3);
+            
+            // Scatter Tanks
+            buildTank(-4, 0, -3);
+            buildTank(5, 0, 3);
+            buildTank(-6, 0, 2);
+
+            // Scatter Missiles
+            buildMissile(2, 0, -4);
+            buildMissile(-2, 0, 6);
+            buildMissile(6, 0, -2);
+            buildMissile(0, 0, 2);
+            buildMissile(-8, 0, -2);
+        }
+
+        function buildMountain(offsetX, offsetY, offsetZ, height) {
+            for(let y = 0; y < height; y++) {
+                let width = height - y; // Steeper than a basic pyramid
+                for(let x = -width; x <= width; x++) {
+                    for(let z = -width; z <= width; z++) {
+                        // Make it somewhat circular/diamond shaped for a more organic mountain look
+                        if (Math.abs(x) + Math.abs(z) > width + 1) continue; 
+
+                        // Mix regular sand and dark sand for organic texture
+                        let mat = (Math.random() > 0.5) ? materials.sand : materials.sandDark;
+                        // Use the optimized large blocks
+                        spawnLargeCube(offsetX + x * mSpacing, offsetY + 0.8 + y * mSpacing, offsetZ + z * mSpacing, mat);
+                    }
+                }
+            }
+        }
+
+        function buildTank(offsetX, offsetY, offsetZ) {
+            // Treads
+            for(let x=0; x<6; x++) {
+                for(let z=0; z<4; z+=3) { // Sides
+                    spawnCube(offsetX + x*spacing, offsetY + 0.5, offsetZ + z*spacing, materials.tankTreads);
+                    spawnCube(offsetX + x*spacing, offsetY + 0.5 + spacing, offsetZ + z*spacing, materials.tankTreads);
+                }
+            }
+            // Body
+            for(let x=1; x<5; x++) {
+                for(let z=1; z<3; z++) {
+                    spawnCube(offsetX + x*spacing, offsetY + 0.5 + spacing, offsetZ + z*spacing, materials.camoGreen);
+                    spawnCube(offsetX + x*spacing, offsetY + 0.5 + 2*spacing, offsetZ + z*spacing, materials.camoGreen);
+                }
+            }
+            // Turret
+            for(let x=2; x<4; x++) {
+                for(let z=1; z<3; z++) {
+                    spawnCube(offsetX + x*spacing, offsetY + 0.5 + 3*spacing, offsetZ + z*spacing, materials.camoGreen);
+                }
+            }
+            // Gun barrel
+            for(let x=4; x<8; x++) {
+                // Ensure it aligns nicely on the Z axis
+                spawnCube(offsetX + x*spacing, offsetY + 0.5 + 3*spacing, offsetZ + 1.5*spacing, materials.tankTreads);
+            }
+        }
+
+        function buildMissile(offsetX, offsetY, offsetZ) {
+            // Missile Body (Standing upright)
+            for(let y=0; y<8; y++) {
+                for(let x=0; x<2; x++) {
+                    for(let z=0; z<2; z++) {
+                        let mat = materials.missileGray;
+                        if (y === 0) mat = materials.missileRed; // Engine/exhaust area
+                        spawnCube(offsetX + x*spacing, offsetY + 0.5 + y*spacing, offsetZ + z*spacing, mat);
+                    }
+                }
+            }
+            // Warhead (Pointy top)
+            spawnCube(offsetX + 0.5*spacing, offsetY + 0.5 + 8*spacing, offsetZ + 0.5*spacing, materials.missileRed);
+            
+            // Fins
+            spawnCube(offsetX - spacing, offsetY + 0.5 + 0*spacing, offsetZ + 0.5*spacing, materials.missileRed);
+            spawnCube(offsetX + 2*spacing, offsetY + 0.5 + 0*spacing, offsetZ + 0.5*spacing, materials.missileRed);
+            spawnCube(offsetX + 0.5*spacing, offsetY + 0.5 + 0*spacing, offsetZ - spacing, materials.missileRed);
+            spawnCube(offsetX + 0.5*spacing, offsetY + 0.5 + 0*spacing, offsetZ + 2*spacing, materials.missileRed);
+        }
+
+        // ==========================================
+        // LEVEL 5: SUGAR RUSH (Procedural Candyland)
+        // ==========================================
+        function buildCandyland() {
+            // 1. Centerpiece: Giant Layer Cake
+            buildLayerCake(0, 0);
+
+            let candyColors = [materials.candyRed, materials.candyCyan, materials.candyPurple, materials.frostingPink];
+
+            // 2. Procedural Ice Cream Cones (scattered far away)
+            for(let i=0; i<6; i++) {
+                let angle = Math.random() * Math.PI * 2;
+                let radius = 8 + Math.random() * 8; // Don't spawn inside the cake
+                let x = Math.cos(angle) * radius;
+                let z = Math.sin(angle) * radius;
+                let randomColor = candyColors[Math.floor(Math.random() * candyColors.length)];
+                buildIceCreamCone(x, z, randomColor);
+            }
+
+            // 3. Procedural Lollipops (scattered everywhere)
+            for(let i=0; i<12; i++) {
+                let x = (Math.random() - 0.5) * 30;
+                let z = (Math.random() - 0.5) * 30;
+                if(Math.abs(x) < 5 && Math.abs(z) < 5) continue; // Keep center clear
+                let randomColor = candyColors[Math.floor(Math.random() * 3)]; // Red, Cyan, Purple
+                buildLollipop(x, z, randomColor);
+            }
+
+            // 4. Scatter hundreds of tiny procedural Sprinkles across the map
+            for(let i=0; i<80; i++) {
+                let x = (Math.random() - 0.5) * 40;
+                let z = (Math.random() - 0.5) * 40;
+                if(Math.abs(x) < 3 && Math.abs(z) < 3) continue; // Keep center clear
+                
+                let randomColor = candyColors[Math.floor(Math.random() * candyColors.length)];
+                // Using standard small blocks for single scattered sprinkles
+                spawnCube(x, 0.5, z, randomColor);
+            }
+        }
+
+        function buildLayerCake(offsetX, offsetZ) {
+            // Bottom Tier (Chocolate, Massive)
+            for(let y=0; y<2; y++) {
+                for(let x=-2; x<=2; x++) {
+                    for(let z=-2; z<=2; z++) {
+                        // Round the corners
+                        if(Math.abs(x)===2 && Math.abs(z)===2) continue;
+                        spawnLargeCube(offsetX + x*mSpacing, 0.5 + y*mSpacing, offsetZ + z*mSpacing, materials.cakeChoco);
+                    }
+                }
+            }
+            // Middle Tier (Vanilla, Slightly smaller)
+            for(let y=2; y<4; y++) {
+                for(let x=-1; x<=1; x++) {
+                    for(let z=-1; z<=1; z++) {
+                        spawnLargeCube(offsetX + x*mSpacing, 0.5 + y*mSpacing, offsetZ + z*mSpacing, materials.cakeVanilla);
+                    }
+                }
+            }
+            // Cherry on Top (Small blocks for round shape)
+            let topYBase = 4 * mSpacing;
+            for(let y=0; y<2; y++) {
+                for(let x=-1; x<=1; x++) {
+                    for(let z=-1; z<=1; z++) {
+                        if(Math.abs(x)===1 && Math.abs(z)===1) continue;
+                        spawnCube(offsetX + x*spacing, 0.5 + topYBase + y*spacing, offsetZ + z*spacing, materials.candyRed);
+                    }
+                }
+            }
+        }
+
+        function buildIceCreamCone(offsetX, offsetZ, flavorMat) {
+            // Wafer Cone (Inverted pyramid using Large Cubes)
+            spawnLargeCube(offsetX, 0.5, offsetZ, materials.coneWafer);
+            
+            for(let x=-1; x<=1; x++) {
+                for(let z=-1; z<=1; z++) {
+                    if(Math.abs(x)===1 && Math.abs(z)===1) continue; // cross shape
+                    spawnLargeCube(offsetX + x*mSpacing, 0.5 + mSpacing, offsetZ + z*mSpacing, materials.coneWafer);
+                }
+            }
+
+            for(let x=-1; x<=1; x++) {
+                for(let z=-1; z<=1; z++) {
+                    spawnLargeCube(offsetX + x*mSpacing, 0.5 + 2*mSpacing, offsetZ + z*mSpacing, materials.coneWafer);
+                }
+            }
+
+            // Ice Cream Scoop (Massive block chunk)
+            for(let y=3; y<=4; y++) {
+                for(let x=-1; x<=1; x++) {
+                    for(let z=-1; z<=1; z++) {
+                        spawnLargeCube(offsetX + x*mSpacing, 0.5 + y*mSpacing, offsetZ + z*mSpacing, flavorMat);
+                    }
+                }
+            }
+            // Top point of the scoop
+            spawnLargeCube(offsetX, 0.5 + 5*mSpacing, offsetZ, flavorMat);
+        }
+
+        function buildLollipop(offsetX, offsetZ, candyMat) {
+            // White Stick (Detailed small blocks)
+            for(let y=0; y<7; y++) {
+                spawnCube(offsetX, 0.5 + y*spacing, offsetZ, materials.stickWhite);
+            }
+
+            // Giant Candy Swirl (Flat vertical disk made of small blocks)
+            let headYBase = 6 * spacing; 
+            for(let y=-2; y<=2; y++) {
+                for(let x=-2; x<=2; x++) {
+                    // Round the edges of the disk
+                    if(Math.abs(x)===2 && Math.abs(y)===2) continue; 
+                    
+                    spawnCube(offsetX + x*spacing, 0.5 + headYBase + y*spacing, offsetZ, candyMat);
+                }
+            }
+        }
+
+        // ==========================================
+        // MAIN GAME LOGIC LOOP
+        // ==========================================
+        function handleGameLogic() {
+            // 1. Update Hole Position based on Mouse/Touch
+            raycaster.setFromCamera(mouse, camera);
+            let target = new THREE.Vector3();
+            raycaster.ray.intersectPlane(groundPlane, target);
+            if (target) {
+                // Smooth follow
+                holeMesh.position.x += (target.x - holeMesh.position.x) * 0.2;
+                holeMesh.position.z += (target.z - holeMesh.position.z) * 0.2;
+            }
+
+            const thresholdSetting = parseInt(document.getElementById('threshold-slider').value);
+            const multiplierSetting = parseFloat(document.getElementById('multiplier-slider').value);
+
+            // 2. Check Cubes
+            for (let i = cubes.length - 1; i >= 0; i--) {
+                let cube = cubes[i];
+
+                // Sync Visuals to Physics
+                cube.mesh.position.copy(cube.body.position);
+                cube.mesh.quaternion.copy(cube.body.quaternion);
+
+                // Calculate horizontal distance from cube center to hole center
+                let dx = cube.mesh.position.x - holeMesh.position.x;
+                let dz = cube.mesh.position.z - holeMesh.position.z;
+                let distance = Math.sqrt(dx*dx + dz*dz);
+
+                // PERFORMANCE OPTIMIZATION: Wake up physics only when the hole is close
+                let activationRadius = currentRadius * 3.5;
+                if (cube.body.mass === 0 && distance < activationRadius) {
+                    cube.body.mass = cube.isLargeBlock ? 2.5 : 0.5; // Large blocks are heavier
+                    cube.body.type = CANNON.Body.DYNAMIC;
+                    cube.body.updateMassProperties();
+                    cube.body.wakeUp();
+                }
+
+                // CATCH EXTREME VELOCITY: Force a speed limit on awakened blocks
+                if (!cube.isFalling) {
+                    let speed = cube.body.velocity.length();
+                    if (speed > 12) {
+                        cube.body.velocity.scale(12 / speed, cube.body.velocity);
+                    }
+                }
+
+                // Check for safety bounds (Tightened to match the camera viewport perfectly!)
+                let isOutOfBounds = cube.mesh.position.x > 25 || 
+                                    cube.mesh.position.x < -25 || 
+                                    cube.mesh.position.z > 18 || 
+                                    cube.mesh.position.z < -25 || 
+                                    cube.mesh.position.y > 15;
+
+                // Trigger: SUCK IN
+                if (!cube.isFalling && distance < currentRadius * 1.1) {
+                    cube.isFalling = true;
+                    // The Magic Trick: Remove collision with the Ground Group!
+                    cube.body.collisionFilterMask = CUBE_GROUP; 
+                }
+
+                // Apply sucking physics
+                if (cube.isFalling) {
+                    // Pull towards center
+                    cube.body.velocity.x = -dx * 6;
+                    cube.body.velocity.z = -dz * 6;
+                    // Force downward
+                    cube.body.velocity.y = -8;
+
+                    // Visually shrink it
+                    if (cube.mesh.scale.x > 0.1) {
+                        cube.mesh.scale.multiplyScalar(0.9);
+                    }
+                }
+
+                // Remove if it falls too deep OR flies out of bounds
+                if (cube.mesh.position.y < -3 || isOutOfBounds) {
+                    scene.remove(cube.mesh);
+                    world.remove(cube.body);
+                    cubes.splice(i, 1);
+                    
+                    score++; // Automatically counts toward the score, even if out of bounds
+                    updateUI();
+                    
+                    // Check Growth
+                    if (score - lastScaleScore >= thresholdSetting) {
+                        sizeLevel++; 
+                        lastScaleScore = score;
+                        currentRadius *= multiplierSetting;
+                        updateUI();
+                        // Animate scale up
+                        holeMesh.scale.set(currentRadius, currentRadius, 1);
+                    }
+
+                    // Check Win Condition
+                    if (cubes.length === 0 && isPlaying) {
+                        isPlaying = false;
+                        showLevelComplete();
+                    }
+                }
+            }
+        }
+
+        function showLevelComplete() {
+            const overlay = document.getElementById('level-complete-overlay');
+            overlay.style.display = 'flex';
+        }
+
+        function updateUI() {
+            document.getElementById('score-display').innerText = score;
+            document.getElementById('level-display').innerText = sizeLevel;
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            world.step(1 / 60);
+            handleGameLogic();
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html>
