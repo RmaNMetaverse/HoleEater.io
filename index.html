@@ -233,16 +233,101 @@
         // Dynamic Level Management System
         let currentLevelIndex = 0; 
 
+        // --- Audio System Variables ---
+        let audioCtx;
+        let lastEatSoundTime = 0;
+
         // Constants
         const CUBE_GROUP = 1;
         const GROUND_GROUP = 2;
 
         window.onload = function() {
             initEngine();
+            initAudio();
             setupUI();
             startLevel();
             animate();
         };
+
+        function initAudio() {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            audioCtx = new AudioContext();
+
+            // Browsers require a user interaction to start audio processing
+            document.addEventListener('pointerdown', () => {
+                if (audioCtx && audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+            }, { once: true });
+        }
+
+        // Procedural Synthesizer: Very short 'pop' sound for eating
+        function playEatSound() {
+            if (!audioCtx || audioCtx.state === 'suspended') return;
+            
+            // Throttle to prevent speaker blow-outs when eating 20 blocks at once
+            if (audioCtx.currentTime - lastEatSoundTime < 0.04) return;
+            lastEatSoundTime = audioCtx.currentTime;
+
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(300 + Math.random() * 100, audioCtx.currentTime); 
+            osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.05);
+            
+            gain.gain.setValueAtTime(0.04, audioCtx.currentTime); // Keep volume low
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.05);
+        }
+
+        // Procedural Synthesizer: Sweeping 'whoosh' for growing
+        function playGrowSound() {
+            if (!audioCtx || audioCtx.state === 'suspended') return;
+            
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(200, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(600, audioCtx.currentTime + 0.3);
+            
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3);
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.3);
+        }
+
+        // Procedural Synthesizer: Arpeggio for winning the level
+        function playVictorySound() {
+            if (!audioCtx || audioCtx.state === 'suspended') return;
+            
+            // Major chord arpeggio
+            [300, 375, 450, 600].forEach((freq, i) => {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                
+                osc.type = 'square';
+                osc.frequency.value = freq;
+                
+                let startTime = audioCtx.currentTime + i * 0.1;
+                gain.gain.setValueAtTime(0, startTime);
+                gain.gain.linearRampToValueAtTime(0.08, startTime + 0.05);
+                gain.gain.linearRampToValueAtTime(0, startTime + 0.3);
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(startTime);
+                osc.stop(startTime + 0.3);
+            });
+        }
 
         function initEngine() {
             // 1. THREE.JS SETUP
@@ -620,14 +705,17 @@
         // LEVEL 1: PLAYGROUND BUILDERS
         // ==========================================
         function buildPlayground() {
-            buildSandbox(-6, 0, -6);
-            buildSlide(2, 0, 2);
-            buildTree(-7, 0, 6);
-            buildTree(8, 0, -5);
-            buildPyramid(5, 0, 4);
-            buildSwingSet(-2, 0, -2);
-            buildSeesaw(-2, 0, 5);
-            buildToyCar(4, 0, -4);
+            // Re-arranged layout for much better spacing
+            buildSandbox(-7, 0, -6);
+            buildSwingSet(-1, 0, -6); 
+            buildToyCar(5, 0, -6);
+            
+            buildSlide(2, 0, 1);
+            buildSeesaw(-4, 0, 3);
+            buildPyramid(4, 0, 5);
+
+            buildTree(-8, 0, 5);
+            buildTree(8, 0, -2);
         }
 
         function buildSandbox(offsetX, offsetY, offsetZ) {
@@ -1217,6 +1305,7 @@
                     
                     score++; // Automatically counts toward the score, even if out of bounds
                     updateUI();
+                    playEatSound(); // <-- Synthesized Eat Sound
                     
                     // Check Growth
                     if (score - lastScaleScore >= thresholdSetting) {
@@ -1226,12 +1315,14 @@
                         updateUI();
                         // Animate scale up
                         holeMesh.scale.set(currentRadius, currentRadius, 1);
+                        playGrowSound(); // <-- Synthesized Growth Sound
                     }
 
                     // Check Win Condition
                     if (cubes.length === 0 && isPlaying) {
                         isPlaying = false;
                         showLevelComplete();
+                        playVictorySound(); // <-- Synthesized Win Sound
                     }
                 }
             }
