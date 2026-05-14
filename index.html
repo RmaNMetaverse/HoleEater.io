@@ -344,12 +344,18 @@
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             audioCtx = new AudioContext();
 
-            // Browsers require a user interaction to start audio processing
-            document.addEventListener('pointerdown', () => {
+            // Browsers require a user interaction to start audio processing.
+            // Since players can start the game just by moving their mouse without clicking,
+            // we need to listen for movements as well as clicks/taps to unlock the audio!
+            const unlockAudio = () => {
                 if (audioCtx && audioCtx.state === 'suspended') {
                     audioCtx.resume();
                 }
-            }, { once: true });
+            };
+
+            ['pointerdown', 'touchstart', 'mousedown', 'keydown', 'mousemove', 'touchmove'].forEach(evt => {
+                document.addEventListener(evt, unlockAudio, { passive: true });
+            });
         }
 
         function playEatSound() {
