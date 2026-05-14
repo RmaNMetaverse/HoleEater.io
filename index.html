@@ -290,8 +290,9 @@
             <h2 style="color: white; margin-top: 0; font-size: 28px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">Support the Creator</h2>
             <p style="color: #ccc; font-size: 16px; margin-bottom: 25px;">Donate via Tether (USDT TRC20)</p>
             
-            <!-- Dynamically generated QR Code from API -->
-            <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=TTC1H8gomqsozKdka1AeKEpeZYQntaSQZ5" alt="USDT TRC20 QR Code" style="border: 6px solid white; border-radius: 10px; width: 180px; height: 180px;">
+            <!-- Static Base64 QR Code (Works 100% Offline) -->
+            <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAAC0AQMAAAAHA5RxAAAABlBMVEX///8AAABVwtN+AAAACXBIWXMAAA7EAAAOxAGVKw4bAAABfElEQVRYhc2Xsa3DMAxE+aFCZUbwKNrMkjfzKBrBZQrDzB2pj58fIK0pwUjCVzG605kS+bKqYnVJR8HXz3Np6iCKr+gp95IOQbmpthPgEcizXrnjdzlzX2Vp50PPcF70KMn3bQou3K2sDZ/R3HVEZfZePvS9nbvP4auSnsv26f/7+ViqO3hDn//jYBqO/q+skHRHseZe+U+OOA5xoap6XlU+h0Ty4X/LK55HqvuWVwEclRTLK6WOyZIijFtrXSyv9PIdjORIKVa0dtbtKXXkQxzv2DoZeYWt4wl0v03FkavQ1/KBu+j6BnK0ZjFq+cCc4ntH4nj1Uwj/K3NeeDKT5X8MX7O9aNTmqEb/qykaxu0Z+XBRR93HnBDDM6dLSMdUqJ6fI89DuK/iDmOfMvw2Ga9suBdUlmM2f0og93kPlt+TTQzoc/+bPwO4z+fgv2FhhyGaK+cWzufMqym43+84R5UUycXvCyMf7E3zdv+9nQ+fez7wfpdcx9n4l/UCntG4k8xF6oAAAAAASUVORK5CYII=" 
+                 alt="USDT TRC20 QR Code" style="border: 6px solid white; border-radius: 10px; width: 180px; height: 180px; box-sizing: border-box; image-rendering: pixelated;">
             
             <div class="wallet-address" id="wallet-text">TTC1H8gomqsozKdka1AeKEpeZYQntaSQZ5</div>
             
@@ -331,13 +332,13 @@
         const CUBE_GROUP = 1;
         const GROUND_GROUP = 2;
 
-        window.onload = function() {
+        document.addEventListener('DOMContentLoaded', function() {
             initEngine();
             initAudio();
             setupUI();
             startLevel();
             animate();
-        };
+        });
 
         function initAudio() {
             const AudioContext = window.AudioContext || window.webkitAudioContext;
