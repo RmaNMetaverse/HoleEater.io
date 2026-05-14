@@ -153,6 +153,64 @@
         .restart-btn:hover { background-color: #e05300; transform: scale(1.05); }
         .next-btn { background-color: #8fce00; color: white; }
         .next-btn:hover { background-color: #7ab300; transform: scale(1.05); }
+
+        /* Game Complete Overlay Styles */
+        #game-complete-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0,0,0,0.85);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            backdrop-filter: blur(5px);
+        }
+        .social-row { display: flex; gap: 15px; margin-bottom: 25px; flex-wrap: wrap; justify-content: center; }
+        .social-btn {
+            padding: 12px 24px; text-decoration: none; color: white;
+            font-weight: bold; border-radius: 8px; font-size: 16px;
+            transition: transform 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+        .social-btn:hover { transform: scale(1.1); }
+        .yt-btn { background-color: #FF0000; }
+        .in-btn { background-color: #0077b5; }
+        .ig-btn { background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%); }
+        .donate-btn { background-color: #ffde00; color: #333; font-size: 18px; padding: 15px 30px; border-color: #ffde00; margin-top: 10px;}
+        .donate-btn:hover { background-color: #e6c800; transform: scale(1.05); }
+
+        /* Donate Popup Styles */
+        #donate-popup {
+            position: absolute;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0,0,0,0.92);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            backdrop-filter: blur(10px);
+        }
+        .donate-card {
+            background: #1a1a1a;
+            padding: 35px;
+            border-radius: 16px;
+            border: 3px solid #ffde00;
+            text-align: center;
+            max-width: 450px;
+            width: 90%;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+        }
+        .wallet-address {
+            background: #000;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #444;
+            word-break: break-all;
+            margin: 25px 0;
+            font-family: monospace;
+            color: #ffde00;
+            font-size: 18px;
+        }
     </style>
     <!-- Import Three.js and Cannon.js via CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -212,6 +270,38 @@
         </div>
     </div>
 
+    <div id="game-complete-overlay">
+        <h1 class="level-passed-text" style="margin-bottom: 10px;">You Beat The Game!</h1>
+        <p style="color: white; font-size: 22px; font-weight: bold; margin-bottom: 30px; text-shadow: 1px 1px 4px rgba(0,0,0,0.8);">Thanks for playing!</p>
+        
+        <div class="social-row">
+            <a href="https://YouTube.com/RmaNYouTube" target="_blank" class="social-btn yt-btn">YouTube</a>
+            <a href="https://linkedin.com/in/armanjangmiri" target="_blank" class="social-btn in-btn">LinkedIn</a>
+            <a href="https://instagram.com/rman.insta" target="_blank" class="social-btn ig-btn">Instagram</a>
+        </div>
+        
+        <button id="donate-btn" class="stylized-btn donate-btn">Support the Creator (Donate)</button>
+        <button id="play-again-btn" class="stylized-btn next-btn" style="margin-top: 30px; padding: 10px 20px; font-size: 16px;">Play Again</button>
+    </div>
+
+    <!-- Donate Popup -->
+    <div id="donate-popup">
+        <div class="donate-card">
+            <h2 style="color: white; margin-top: 0; font-size: 28px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">Support the Creator</h2>
+            <p style="color: #ccc; font-size: 16px; margin-bottom: 25px;">Donate via Tether (USDT TRC20)</p>
+            
+            <!-- Dynamically generated QR Code from API -->
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=TTC1H8gomqsozKdka1AeKEpeZYQntaSQZ5" alt="USDT TRC20 QR Code" style="border: 6px solid white; border-radius: 10px; width: 180px; height: 180px;">
+            
+            <div class="wallet-address" id="wallet-text">TTC1H8gomqsozKdka1AeKEpeZYQntaSQZ5</div>
+            
+            <div style="display: flex; gap: 15px; justify-content: center;">
+                <button id="copy-wallet-btn" class="stylized-btn" style="padding: 12px 20px; font-size: 16px; background-color: #0077b5; flex: 1;">Copy Address</button>
+                <button id="close-donate-btn" class="stylized-btn restart-btn" style="padding: 12px 20px; font-size: 16px; flex: 1;">Close</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // --- Game Variables ---
         let scene, camera, renderer, world;
@@ -261,11 +351,8 @@
             }, { once: true });
         }
 
-        // Procedural Synthesizer: Very short 'pop' sound for eating
         function playEatSound() {
             if (!audioCtx || audioCtx.state === 'suspended') return;
-            
-            // Throttle to prevent speaker blow-outs when eating 20 blocks at once
             if (audioCtx.currentTime - lastEatSoundTime < 0.04) return;
             lastEatSoundTime = audioCtx.currentTime;
 
@@ -276,7 +363,7 @@
             osc.frequency.setValueAtTime(300 + Math.random() * 100, audioCtx.currentTime); 
             osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.05);
             
-            gain.gain.setValueAtTime(0.04, audioCtx.currentTime); // Keep volume low
+            gain.gain.setValueAtTime(0.04, audioCtx.currentTime);
             gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
 
             osc.connect(gain);
@@ -285,7 +372,6 @@
             osc.stop(audioCtx.currentTime + 0.05);
         }
 
-        // Procedural Synthesizer: Sweeping 'whoosh' for growing
         function playGrowSound() {
             if (!audioCtx || audioCtx.state === 'suspended') return;
             
@@ -305,11 +391,9 @@
             osc.stop(audioCtx.currentTime + 0.3);
         }
 
-        // Procedural Synthesizer: Arpeggio for winning the level
         function playVictorySound() {
             if (!audioCtx || audioCtx.state === 'suspended') return;
             
-            // Major chord arpeggio
             [300, 375, 450, 600].forEach((freq, i) => {
                 const osc = audioCtx.createOscillator();
                 const gain = audioCtx.createGain();
@@ -330,14 +414,13 @@
         }
 
         function initEngine() {
-            // 1. THREE.JS SETUP
             const container = document.getElementById('canvas-container');
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x8fce00); // Bright green ground
+            scene.background = new THREE.Color(0x8fce00); 
             scene.fog = new THREE.Fog(0x8fce00, 20, 60);
 
             camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.set(0, 25, 20); // Top-down angled view
+            camera.position.set(0, 25, 20); 
             camera.lookAt(0, 0, 0);
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -346,7 +429,6 @@
             renderer.shadowMap.type = THREE.PCFSoftShadowMap;
             container.appendChild(renderer.domElement);
 
-            // Lighting
             const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
             scene.add(ambientLight);
 
@@ -361,22 +443,18 @@
             dirLight.shadow.camera.bottom = -20;
             scene.add(dirLight);
 
-            // 2. CANNON.JS SETUP (Physics)
             world = new CANNON.World();
-            world.gravity.set(0, -9.82, 0); // Earth gravity
+            world.gravity.set(0, -9.82, 0); 
             world.broadphase = new CANNON.NaiveBroadphase();
             world.solver.iterations = 20;
 
-            // Physics Materials (REDUCED BOUNCINESS TO PREVENT EXPLOSIONS)
             const physicsMaterial = new CANNON.Material("standard");
             const physicsContactMaterial = new CANNON.ContactMaterial(
                 physicsMaterial, physicsMaterial, 
-                { friction: 0.6, restitution: 0.0 } // 0.0 restitution means zero bounce
+                { friction: 0.6, restitution: 0.0 } // Prevent physics explosions
             );
             world.addContactMaterial(physicsContactMaterial);
 
-            // 3. THE GROUND
-            // Visual Ground
             const groundGeo = new THREE.PlaneGeometry(200, 200);
             const groundMat = new THREE.MeshLambertMaterial({ color: 0x8fce00 });
             groundMesh = new THREE.Mesh(groundGeo, groundMat);
@@ -384,7 +462,6 @@
             groundMesh.receiveShadow = true;
             scene.add(groundMesh);
 
-            // Physics Ground
             const groundShape = new CANNON.Plane();
             groundBody = new CANNON.Body({ mass: 0, material: physicsMaterial });
             groundBody.addShape(groundShape);
@@ -392,20 +469,17 @@
             groundBody.collisionFilterGroup = GROUND_GROUP;
             world.addBody(groundBody);
 
-            // 4. THE HOLE (Visual)
             const holeGeo = new THREE.CircleGeometry(1, 32);
             const holeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
             holeMesh = new THREE.Mesh(holeGeo, holeMat);
             holeMesh.rotation.x = -Math.PI / 2;
-            holeMesh.position.y = 0.08; // Above decorations, no Z-fighting
-            holeMesh.renderOrder = 10; // Draw after ground and decorations
+            holeMesh.position.y = 0.08; 
+            holeMesh.renderOrder = 10; 
             holeMesh.scale.set(currentRadius, currentRadius, 1);
             scene.add(holeMesh);
 
-            // Mathematical plane for mouse raycasting
             groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
-            // Event Listeners for Interaction
             window.addEventListener('resize', onWindowResize);
             document.addEventListener('mousemove', onPointerMove);
             document.addEventListener('touchmove', onPointerMove, { passive: false });
@@ -426,7 +500,6 @@
 
             document.getElementById('restart-btn').addEventListener('click', startLevel);
 
-            // Menu Toggle Logic (Fixed)
             const menuToggle = document.getElementById('menu-toggle');
             const uiBody = document.getElementById('ui-body');
             menuToggle.addEventListener('click', () => {
@@ -439,13 +512,11 @@
                 }
             });
 
-            // Secret Keyboard Shortcut for Sliders (Ctrl + L)
             window.addEventListener('keydown', (e) => {
                 if (e.ctrlKey && (e.key === 'l' || e.key === 'L')) {
                     e.preventDefault();
                     const debugPanel = document.getElementById('debug-controls');
                     
-                    // Toggle debug panel, and forcefully open the parent menu if it was closed
                     if (debugPanel.style.display === 'none' || debugPanel.style.display === '') {
                         uiBody.style.display = 'block';
                         menuToggle.innerHTML = '&#9650;';
@@ -456,12 +527,10 @@
                 }
             });
 
-            // Level Complete Overlay Buttons
             document.getElementById('overlay-restart-btn').addEventListener('click', startLevel);
             document.getElementById('overlay-next-btn').addEventListener('click', () => {
                 currentLevelIndex++;
                 if (currentLevelIndex >= levels.length) {
-                    alert("You've beaten all available levels! Looping back to the start.");
                     currentLevelIndex = 0;
                 }
                 startLevel();
@@ -469,12 +538,54 @@
 
             // Debug Menu Next Level Button
             document.getElementById('debug-next-btn').addEventListener('click', () => {
-                currentLevelIndex++;
-                if (currentLevelIndex >= levels.length) {
-                    alert("You've beaten all available levels! Looping back to the start.");
-                    currentLevelIndex = 0;
+                if (currentLevelIndex >= levels.length - 1) {
+                    isPlaying = false;
+                    showGameComplete();
+                    playVictorySound();
+                } else {
+                    currentLevelIndex++;
+                    startLevel();
                 }
+            });
+
+            // Game Complete Menu Buttons
+            document.getElementById('play-again-btn').addEventListener('click', () => {
+                currentLevelIndex = 0;
                 startLevel();
+            });
+
+            document.getElementById('donate-btn').addEventListener('click', () => {
+                document.getElementById('donate-popup').style.display = 'flex';
+            });
+
+            document.getElementById('close-donate-btn').addEventListener('click', () => {
+                document.getElementById('donate-popup').style.display = 'none';
+            });
+
+            // Copy Wallet Address Logic
+            document.getElementById('copy-wallet-btn').addEventListener('click', () => {
+                const walletText = document.getElementById('wallet-text').innerText;
+                
+                // Using fallback for clipboard to ensure it works in all iframe/mobile environments
+                const textArea = document.createElement("textarea");
+                textArea.value = walletText;
+                document.body.appendChild(textArea);
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    const copyBtn = document.getElementById('copy-wallet-btn');
+                    copyBtn.innerText = "Copied!";
+                    copyBtn.style.backgroundColor = "#8fce00"; // Green for success
+                    
+                    // Reset button after 2 seconds
+                    setTimeout(() => {
+                        copyBtn.innerText = "Copy Address";
+                        copyBtn.style.backgroundColor = "#0077b5";
+                    }, 2000);
+                } catch (err) {
+                    console.error('Unable to copy', err);
+                }
+                document.body.removeChild(textArea);
             });
         }
 
@@ -500,7 +611,6 @@
         function startLevel() {
             let levelData = levels[currentLevelIndex];
 
-            // Reset Stats
             isPlaying = true;
             score = 0;
             sizeLevel = 1;
@@ -515,26 +625,23 @@
 
             updateUI();
             
-            // Hide Overlay if it was open
+            // Hide Overlays if they were open
             document.getElementById('level-complete-overlay').style.display = 'none';
+            document.getElementById('game-complete-overlay').style.display = 'none';
 
             holeMesh.scale.set(currentRadius, currentRadius, 1);
 
-            // Clear old cubes
             cubes.forEach(c => {
                 scene.remove(c.mesh);
                 world.remove(c.body);
             });
             cubes = [];
 
-            // Clear decorations (non-eatable environment)
             decorations.forEach(d => scene.remove(d));
             decorations = [];
 
-            // Call the specific builder function for this level
             levelData.buildFunc();
 
-            // Set the explicitly tuned scale threshold for this level
             let thresholdSlider = document.getElementById('threshold-slider');
             thresholdSlider.value = levelData.threshold;
             document.getElementById('threshold-val').innerText = `${levelData.threshold} cubes`;
@@ -546,8 +653,7 @@
         const boxGeo = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
         const boxShape = new CANNON.Box(new CANNON.Vec3(cubeSize/2, cubeSize/2, cubeSize/2));
 
-        // Large Geometry to drastically improve performance on big structures
-        const mMult = 3; // 3x bigger = 27x fewer blocks per volume
+        const mMult = 3; 
         const mSpacing = spacing * mMult;
         const mCubeSize = cubeSize * mMult;
         const largeBoxGeo = new THREE.BoxGeometry(mCubeSize, mCubeSize, mCubeSize);
@@ -597,7 +703,18 @@
             candyRed: new THREE.MeshLambertMaterial({ color: 0xFF0000 }),
             candyCyan: new THREE.MeshLambertMaterial({ color: 0x00FFFF }),
             candyPurple: new THREE.MeshLambertMaterial({ color: 0x9370DB }),
-            stickWhite: new THREE.MeshLambertMaterial({ color: 0xFFFFFF })
+            stickWhite: new THREE.MeshLambertMaterial({ color: 0xFFFFFF }),
+
+            // Level 6 (Guitar Center)
+            guitarSunburst: new THREE.MeshLambertMaterial({ color: 0xFF8C00 }),
+            woodDark: new THREE.MeshLambertMaterial({ color: 0x3d2314 }),
+            metalGold: new THREE.MeshLambertMaterial({ color: 0xFFD700 }),
+
+            // Level 7 (Lush Forest)
+            leafDark: new THREE.MeshLambertMaterial({ color: 0x1E4D2B }),
+            leafLight: new THREE.MeshLambertMaterial({ color: 0x4C9A2A }),
+            woodPine: new THREE.MeshLambertMaterial({ color: 0x4A3728 }),
+            stoneGray: new THREE.MeshLambertMaterial({ color: 0x808080 })
         };
 
         function spawnCube(x, y, z, material) {
@@ -606,12 +723,10 @@
             mesh.receiveShadow = true;
             scene.add(mesh);
 
-            // PERFORMANCE: Lighter mass and start entirely STATIC so nothing falls apart early
             let body = new CANNON.Body({ mass: 0, type: CANNON.Body.STATIC }); 
             body.addShape(boxShape);
             body.position.set(x, y, z);
             
-            // PHYSICS DAMPENING: Slows down blocks so they don't fly off the map
             body.linearDamping = 0.5;
             body.angularDamping = 0.5;
             
@@ -633,12 +748,10 @@
             mesh.receiveShadow = true;
             scene.add(mesh);
 
-            // STATIC start, heavier mass when awakened
             let body = new CANNON.Body({ mass: 0, type: CANNON.Body.STATIC }); 
             body.addShape(largeBoxShape);
             body.position.set(x, y, z);
             
-            // PHYSICS DAMPENING
             body.linearDamping = 0.6;
             body.angularDamping = 0.6;
             
@@ -659,8 +772,8 @@
             const mat = new THREE.MeshBasicMaterial({ color: colorCode });
             let mesh = new THREE.Mesh(geo, mat);
             mesh.rotation.x = -Math.PI / 2;
-            mesh.position.set(x, y, z); // Keep y very low to prevent physics block issues
-            mesh.renderOrder = 1; // Render before the hole
+            mesh.position.set(x, y, z); 
+            mesh.renderOrder = 1; 
             scene.add(mesh);
             decorations.push(mesh);
         }
@@ -673,31 +786,43 @@
                 title: "Playground",
                 bgColor: 0x8fce00, // Grass green
                 buildFunc: buildPlayground,
-                threshold: 15 // Specifically tuned
+                threshold: 15
             },
             {
                 title: "Airport",
                 bgColor: 0x4a4a4a, // Tarmac gray
                 buildFunc: buildAirport,
-                threshold: 20 // Specifically tuned
+                threshold: 20
             },
             {
                 title: "Cyberpunk City",
                 bgColor: 0x2a3040, // Gray-blueish night sky
                 buildFunc: buildCity,
-                threshold: 25 // Specifically tuned
+                threshold: 25
             },
             {
                 title: "Battlefield",
                 bgColor: 0xE6D0AB, // Desert sand color
                 buildFunc: buildBattlefield,
-                threshold: 30 // Specifically tuned
+                threshold: 30
             },
             {
                 title: "Sugar Rush",
                 bgColor: 0xFFB6C1, // Light pink frosting background
                 buildFunc: buildCandyland,
-                threshold: 21 // Specifically tuned for Sugar Rush
+                threshold: 21 
+            },
+            {
+                title: "Guitar Center",
+                bgColor: 0x2A1B38, // Vibrant deep purple
+                buildFunc: buildGuitarCenter,
+                threshold: 22
+            },
+            {
+                title: "Lush Forest",
+                bgColor: 0x243b25, // Deep forest green
+                buildFunc: buildLushForest,
+                threshold: 18
             }
         ];
 
@@ -780,7 +905,6 @@
                 let mat = y % 2 === 0 ? materials.gym1 : materials.gym2;
                 for(let x = 0; x < size; x++) {
                     for(let z = 0; z < size; z++) {
-                        // Reverted to beautifully detailed small blocks
                         spawnCube(offsetX + x * spacing + y * spacing, offsetY + 0.5 + y * spacing, offsetZ + z * spacing + y * spacing, mat);
                     }
                 }
@@ -788,46 +912,37 @@
         }
 
         function buildSwingSet(offsetX, offsetY, offsetZ) {
-            // Poles
             for(let y=0; y<6; y++) {
                 spawnCube(offsetX - 3*spacing, offsetY + 0.5 + y*spacing, offsetZ, materials.metalGray);
                 spawnCube(offsetX + 3*spacing, offsetY + 0.5 + y*spacing, offsetZ, materials.metalGray);
             }
-            // Top Bar
             for(let x=-2; x<=2; x++) {
                 spawnCube(offsetX + x*spacing, offsetY + 0.5 + 5*spacing, offsetZ, materials.slideRed);
             }
-            // Swing Chains & Seats
             for(let y=2; y<5; y++) {
                 spawnCube(offsetX - 1.5*spacing, offsetY + 0.5 + y*spacing, offsetZ, materials.metalGray);
                 spawnCube(offsetX + 1.5*spacing, offsetY + 0.5 + y*spacing, offsetZ, materials.metalGray);
             }
-            // Seats
             spawnCube(offsetX - 1.5*spacing, offsetY + 0.5 + 1*spacing, offsetZ, materials.wood);
             spawnCube(offsetX + 1.5*spacing, offsetY + 0.5 + 1*spacing, offsetZ, materials.wood);
         }
 
         function buildSeesaw(offsetX, offsetY, offsetZ) {
-            // Fulcrum
             spawnCube(offsetX, offsetY + 0.5, offsetZ, materials.gym1);
             spawnCube(offsetX, offsetY + 0.5 + spacing, offsetZ, materials.gym1);
-            // Board
             for(let x=-3; x<=3; x++) {
                 spawnCube(offsetX + x*spacing, offsetY + 0.5 + 2*spacing, offsetZ, materials.wood);
             }
         }
 
         function buildToyCar(offsetX, offsetY, offsetZ) {
-            // body
             for(let x=0; x<3; x++) {
                 for(let z=0; z<2; z++) {
                     spawnCube(offsetX + x*spacing, offsetY + 0.5 + spacing, offsetZ + z*spacing, materials.slideBlue);
                 }
             }
-            // top
             spawnCube(offsetX + 1*spacing, offsetY + 0.5 + 2*spacing, offsetZ, materials.slideRed);
             spawnCube(offsetX + 1*spacing, offsetY + 0.5 + 2*spacing, offsetZ + spacing, materials.slideRed);
-            // wheels
             spawnCube(offsetX, offsetY + 0.5, offsetZ - spacing, materials.blackRubber);
             spawnCube(offsetX + 2*spacing, offsetY + 0.5, offsetZ - spacing, materials.blackRubber);
             spawnCube(offsetX, offsetY + 0.5, offsetZ + 2*spacing, materials.blackRubber);
@@ -838,25 +953,20 @@
         // LEVEL 2: AIRPORT BUILDERS
         // ==========================================
         function buildAirport() {
-            // Un-eatable decorative runway
-            spawnDecorationTexturedPlane(-2, 0.01, 0, 8, 50, 0x222222); // Dark asphalt
+            spawnDecorationTexturedPlane(-2, 0.01, 0, 8, 50, 0x222222); 
             for (let z = -20; z < 20; z += 4) {
-                spawnDecorationTexturedPlane(-2, 0.02, z, 0.6, 2, 0xFFFFFF); // White dashed lines
+                spawnDecorationTexturedPlane(-2, 0.02, z, 0.6, 2, 0xFFFFFF); 
             }
 
             buildControlTower(8, 0, -8);
+            buildBoeing747(-3, 0, -5, materials.planeBlue); 
+            buildBoeing747(6, 0, 5, materials.planeRed);    
             
-            // Scatter 747 Airplanes (Reverted to detailed versions)
-            buildBoeing747(-3, 0, -5, materials.planeBlue); // Plane 1 on runway
-            buildBoeing747(6, 0, 5, materials.planeRed);    // Plane 2 parked
-            
-            // Scatter Helicopters
             buildHelicopter(-7, 0, 8);
             buildHelicopter(-9, 0, 3);
         }
 
         function buildControlTower(offsetX, offsetY, offsetZ) {
-            // Tower Base
             for(let y = 0; y < 8; y++) {
                 for(let x = 0; x < 3; x++) {
                     for(let z = 0; z < 3; z++) {
@@ -864,7 +974,6 @@
                     }
                 }
             }
-            // Control Cab (Glass Top)
             for(let y = 8; y < 10; y++) {
                 for(let x = -1; x < 4; x++) {
                     for(let z = -1; z < 4; z++) {
@@ -873,7 +982,6 @@
                     }
                 }
             }
-            // Roof & Antenna
             for(let x = -1; x < 4; x++) {
                 for(let z = -1; z < 4; z++) {
                     spawnCube(offsetX + x * spacing, offsetY + 0.5 + 10 * spacing, offsetZ + z * spacing, materials.towerGray);
@@ -884,67 +992,56 @@
         }
 
         function buildBoeing747(offsetX, offsetY, offsetZ, accentMat) {
-            // Huge Fuselage with Hump (Reverted to detailed hollow structure)
             for(let x = 0; x < 15; x++) {
                 for(let y = 1; y < 4; y++) {
                     for(let z = 0; z < 3; z++) {
-                        // Hollow center to save physics calculations
                         if (x > 1 && x < 13 && y === 2 && z === 1) continue;
                         
                         let mat = materials.planeWhite;
-                        if (x === 0 && y === 2) mat = materials.glassBlue; // Cockpit nose
-                        if (x > 12) mat = accentMat; // Tail coloring
+                        if (x === 0 && y === 2) mat = materials.glassBlue;
+                        if (x > 12) mat = accentMat;
 
                         spawnCube(offsetX + x * spacing, offsetY + 0.5 + y * spacing, offsetZ + z * spacing, mat);
                     }
                 }
             }
             
-            // The 747 Hump (Cockpit / Upper deck)
             for(let x = 2; x < 6; x++) {
                 for(let z = 0; z < 3; z++) {
                     let mat = materials.planeWhite;
-                    if(x === 2) mat = materials.glassBlue; // Upper cockpit glass
+                    if(x === 2) mat = materials.glassBlue; 
                     spawnCube(offsetX + x * spacing, offsetY + 0.5 + 4 * spacing, offsetZ + z * spacing, mat);
                 }
             }
 
-            // Swept Wings & Engines
             for(let x = 5; x < 10; x++) {
-                // Left Wing sweep
                 let leftZ = -(x - 4); 
                 for(let z = leftZ; z < 0; z++) {
                     spawnCube(offsetX + x * spacing, offsetY + 0.5 + 1 * spacing, offsetZ + z * spacing, materials.planeWhite);
                 }
-                // Right Wing sweep
                 let rightZ = 2 + (x - 4);
                 for(let z = 3; z <= rightZ; z++) {
                     spawnCube(offsetX + x * spacing, offsetY + 0.5 + 1 * spacing, offsetZ + z * spacing, materials.planeWhite);
                 }
                 
-                // Add 4 Engines total
                 if (x === 6 || x === 8) {
                     spawnCube(offsetX + x * spacing, offsetY + 0.5 + 0 * spacing, offsetZ + (leftZ + 1) * spacing, materials.engineBlack);
                     spawnCube(offsetX + x * spacing, offsetY + 0.5 + 0 * spacing, offsetZ + (rightZ - 1) * spacing, materials.engineBlack);
                 }
             }
 
-            // Tail Fin (Vertical & Horizontal)
             for(let x = 12; x < 15; x++) {
-                // Vertical
                 for(let y = 4; y < 7; y++) {
-                    if (x - 11 >= y - 3) { // Slant
+                    if (x - 11 >= y - 3) { 
                         spawnCube(offsetX + x * spacing, offsetY + 0.5 + y * spacing, offsetZ + 1 * spacing, accentMat);
                     }
                 }
-                // Horizontal stabilizers
                 spawnCube(offsetX + x * spacing, offsetY + 0.5 + 2 * spacing, offsetZ - 1 * spacing, materials.planeWhite);
                 spawnCube(offsetX + x * spacing, offsetY + 0.5 + 2 * spacing, offsetZ + 3 * spacing, materials.planeWhite);
             }
         }
 
         function buildHelicopter(offsetX, offsetY, offsetZ) {
-            // Cabin
             for(let x=0; x<4; x++) {
                 for(let y=1; y<4; y++) {
                     for(let z=0; z<3; z++) {
@@ -954,17 +1051,14 @@
                     }
                 }
             }
-            // Tail Boom
             for(let x=4; x<9; x++) {
                 spawnCube(offsetX + x * spacing, offsetY + 0.5 + 2 * spacing, offsetZ + 1 * spacing, materials.heliGreen);
             }
-            // Tail Rotor
             spawnCube(offsetX + 8 * spacing, offsetY + 0.5 + 3 * spacing, offsetZ + 1 * spacing, materials.engineBlack);
             spawnCube(offsetX + 8 * spacing, offsetY + 0.5 + 1 * spacing, offsetZ + 1 * spacing, materials.engineBlack);
             
-            // Main Rotor Shaft & Blades
             spawnCube(offsetX + 2 * spacing, offsetY + 0.5 + 4 * spacing, offsetZ + 1 * spacing, materials.towerGray);
-            for(let i=-2; i<=6; i++) { // Length of blade
+            for(let i=-2; i<=6; i++) { 
                 spawnCube(offsetX + i * spacing, offsetY + 0.5 + 5 * spacing, offsetZ + 1 * spacing, materials.engineBlack);
                 spawnCube(offsetX + 2 * spacing, offsetY + 0.5 + 5 * spacing, offsetZ + (i-1) * spacing, materials.engineBlack);
             }
@@ -974,20 +1068,16 @@
         // LEVEL 3: CYBERPUNK CITY BUILDERS
         // ==========================================
         function buildCity() {
-            // Neon Street Grids (Decorations)
-            spawnDecorationTexturedPlane(0, 0.01, 0, 30, 30, 0x2a3040); // Gray-blueish ground
+            spawnDecorationTexturedPlane(0, 0.01, 0, 30, 30, 0x2a3040); 
             for (let i = -10; i <= 10; i += 5) {
-                spawnDecorationTexturedPlane(i, 0.02, 0, 0.2, 30, 0xFF00FF); // Pink horizontal grid
-                spawnDecorationTexturedPlane(0, 0.02, i, 30, 0.2, 0x00FFFF); // Cyan vertical grid
+                spawnDecorationTexturedPlane(i, 0.02, 0, 0.2, 30, 0xFF00FF); 
+                spawnDecorationTexturedPlane(0, 0.02, i, 30, 0.2, 0x00FFFF); 
             }
 
-            // Skyscrapers (Reverted back to highly detailed small cubes)
             buildSkyscraper(-8, 0, -8, 5, 5, 12, materials.neonPink);
             buildSkyscraper(4, 0, -6, 4, 4, 18, materials.neonCyan);
             buildSkyscraper(-6, 0, 6, 6, 4, 10, materials.neonPurple);
             buildSkyscraper(6, 0, 5, 5, 5, 15, materials.neonCyan);
-            
-            // Central lower building
             buildSkyscraper(-1, 0, -1, 4, 4, 6, materials.neonPink);
         }
 
@@ -995,16 +1085,13 @@
             for(let y = 0; y < heightL; y++) {
                 for(let x = 0; x < widthL; x++) {
                     for(let z = 0; z < depthL; z++) {
-                        // Crucial performance optimization: Hollow out skyscrapers
                         if (x > 0 && x < widthL - 1 && z > 0 && z < depthL - 1) continue;
 
                         let mat = materials.darkBuilding;
-                        
-                        // Add glowing windows or neon bands
                         if (y > 0 && y % 4 === 0) {
-                            mat = accentMat; // Neon accent rings
+                            mat = accentMat; 
                         } else if (y % 2 !== 0 && (x === 1 || x === widthL - 2 || z === 1 || z === depthL - 2)) {
-                            mat = materials.windowGlow; // Lit windows
+                            mat = materials.windowGlow; 
                         }
 
                         spawnCube(offsetX + x * spacing, offsetY + 0.5 + y * spacing, offsetZ + z * spacing, mat);
@@ -1017,7 +1104,6 @@
         // LEVEL 4: BATTLEFIELD BUILDERS
         // ==========================================
         function buildBattlefield() {
-            // Scatter Desert Mountains randomly (Uses fewer, much bigger blocks for performance)
             buildMountain(-12, 0, -12, 3);
             buildMountain(8, 0, -10, 3);
             buildMountain(-10, 0, 8, 2);
@@ -1025,12 +1111,10 @@
             buildMountain(0, 0, -14, 2);
             buildMountain(-2, 0, 12, 3);
             
-            // Scatter Tanks
             buildTank(-4, 0, -3);
             buildTank(5, 0, 3);
             buildTank(-6, 0, 2);
 
-            // Scatter Missiles
             buildMissile(2, 0, -4);
             buildMissile(-2, 0, 6);
             buildMissile(6, 0, -2);
@@ -1040,15 +1124,11 @@
 
         function buildMountain(offsetX, offsetY, offsetZ, height) {
             for(let y = 0; y < height; y++) {
-                let width = height - y; // Steeper than a basic pyramid
+                let width = height - y; 
                 for(let x = -width; x <= width; x++) {
                     for(let z = -width; z <= width; z++) {
-                        // Make it somewhat circular/diamond shaped for a more organic mountain look
                         if (Math.abs(x) + Math.abs(z) > width + 1) continue; 
-
-                        // Mix regular sand and dark sand for organic texture
                         let mat = (Math.random() > 0.5) ? materials.sand : materials.sandDark;
-                        // Use the optimized large blocks
                         spawnLargeCube(offsetX + x * mSpacing, offsetY + 0.8 + y * mSpacing, offsetZ + z * mSpacing, mat);
                     }
                 }
@@ -1056,48 +1136,40 @@
         }
 
         function buildTank(offsetX, offsetY, offsetZ) {
-            // Treads
             for(let x=0; x<6; x++) {
-                for(let z=0; z<4; z+=3) { // Sides
+                for(let z=0; z<4; z+=3) { 
                     spawnCube(offsetX + x*spacing, offsetY + 0.5, offsetZ + z*spacing, materials.tankTreads);
                     spawnCube(offsetX + x*spacing, offsetY + 0.5 + spacing, offsetZ + z*spacing, materials.tankTreads);
                 }
             }
-            // Body
             for(let x=1; x<5; x++) {
                 for(let z=1; z<3; z++) {
                     spawnCube(offsetX + x*spacing, offsetY + 0.5 + spacing, offsetZ + z*spacing, materials.camoGreen);
                     spawnCube(offsetX + x*spacing, offsetY + 0.5 + 2*spacing, offsetZ + z*spacing, materials.camoGreen);
                 }
             }
-            // Turret
             for(let x=2; x<4; x++) {
                 for(let z=1; z<3; z++) {
                     spawnCube(offsetX + x*spacing, offsetY + 0.5 + 3*spacing, offsetZ + z*spacing, materials.camoGreen);
                 }
             }
-            // Gun barrel
             for(let x=4; x<8; x++) {
-                // Ensure it aligns nicely on the Z axis
                 spawnCube(offsetX + x*spacing, offsetY + 0.5 + 3*spacing, offsetZ + 1.5*spacing, materials.tankTreads);
             }
         }
 
         function buildMissile(offsetX, offsetY, offsetZ) {
-            // Missile Body (Standing upright)
             for(let y=0; y<8; y++) {
                 for(let x=0; x<2; x++) {
                     for(let z=0; z<2; z++) {
                         let mat = materials.missileGray;
-                        if (y === 0) mat = materials.missileRed; // Engine/exhaust area
+                        if (y === 0) mat = materials.missileRed; 
                         spawnCube(offsetX + x*spacing, offsetY + 0.5 + y*spacing, offsetZ + z*spacing, mat);
                     }
                 }
             }
-            // Warhead (Pointy top)
             spawnCube(offsetX + 0.5*spacing, offsetY + 0.5 + 8*spacing, offsetZ + 0.5*spacing, materials.missileRed);
             
-            // Fins
             spawnCube(offsetX - spacing, offsetY + 0.5 + 0*spacing, offsetZ + 0.5*spacing, materials.missileRed);
             spawnCube(offsetX + 2*spacing, offsetY + 0.5 + 0*spacing, offsetZ + 0.5*spacing, materials.missileRed);
             spawnCube(offsetX + 0.5*spacing, offsetY + 0.5 + 0*spacing, offsetZ - spacing, materials.missileRed);
@@ -1105,57 +1177,47 @@
         }
 
         // ==========================================
-        // LEVEL 5: SUGAR RUSH (Procedural Candyland)
+        // LEVEL 5: SUGAR RUSH BUILDERS
         // ==========================================
         function buildCandyland() {
-            // 1. Centerpiece: Giant Layer Cake
             buildLayerCake(0, 0);
-
             let candyColors = [materials.candyRed, materials.candyCyan, materials.candyPurple, materials.frostingPink];
 
-            // 2. Procedural Ice Cream Cones (scattered far away)
             for(let i=0; i<6; i++) {
                 let angle = Math.random() * Math.PI * 2;
-                let radius = 8 + Math.random() * 8; // Don't spawn inside the cake
+                let radius = 8 + Math.random() * 8; 
                 let x = Math.cos(angle) * radius;
                 let z = Math.sin(angle) * radius;
                 let randomColor = candyColors[Math.floor(Math.random() * candyColors.length)];
                 buildIceCreamCone(x, z, randomColor);
             }
 
-            // 3. Procedural Lollipops (scattered everywhere)
             for(let i=0; i<12; i++) {
                 let x = (Math.random() - 0.5) * 30;
                 let z = (Math.random() - 0.5) * 30;
-                if(Math.abs(x) < 5 && Math.abs(z) < 5) continue; // Keep center clear
-                let randomColor = candyColors[Math.floor(Math.random() * 3)]; // Red, Cyan, Purple
+                if(Math.abs(x) < 5 && Math.abs(z) < 5) continue; 
+                let randomColor = candyColors[Math.floor(Math.random() * 3)]; 
                 buildLollipop(x, z, randomColor);
             }
 
-            // 4. Scatter hundreds of tiny procedural Sprinkles across the map
             for(let i=0; i<80; i++) {
                 let x = (Math.random() - 0.5) * 40;
                 let z = (Math.random() - 0.5) * 40;
-                if(Math.abs(x) < 3 && Math.abs(z) < 3) continue; // Keep center clear
-                
+                if(Math.abs(x) < 3 && Math.abs(z) < 3) continue; 
                 let randomColor = candyColors[Math.floor(Math.random() * candyColors.length)];
-                // Using standard small blocks for single scattered sprinkles
                 spawnCube(x, 0.5, z, randomColor);
             }
         }
 
         function buildLayerCake(offsetX, offsetZ) {
-            // Bottom Tier (Chocolate, Massive)
             for(let y=0; y<2; y++) {
                 for(let x=-2; x<=2; x++) {
                     for(let z=-2; z<=2; z++) {
-                        // Round the corners
                         if(Math.abs(x)===2 && Math.abs(z)===2) continue;
                         spawnLargeCube(offsetX + x*mSpacing, 0.5 + y*mSpacing, offsetZ + z*mSpacing, materials.cakeChoco);
                     }
                 }
             }
-            // Middle Tier (Vanilla, Slightly smaller)
             for(let y=2; y<4; y++) {
                 for(let x=-1; x<=1; x++) {
                     for(let z=-1; z<=1; z++) {
@@ -1163,7 +1225,6 @@
                     }
                 }
             }
-            // Cherry on Top (Small blocks for round shape)
             let topYBase = 4 * mSpacing;
             for(let y=0; y<2; y++) {
                 for(let x=-1; x<=1; x++) {
@@ -1176,23 +1237,18 @@
         }
 
         function buildIceCreamCone(offsetX, offsetZ, flavorMat) {
-            // Wafer Cone (Inverted pyramid using Large Cubes)
             spawnLargeCube(offsetX, 0.5, offsetZ, materials.coneWafer);
-            
             for(let x=-1; x<=1; x++) {
                 for(let z=-1; z<=1; z++) {
-                    if(Math.abs(x)===1 && Math.abs(z)===1) continue; // cross shape
+                    if(Math.abs(x)===1 && Math.abs(z)===1) continue; 
                     spawnLargeCube(offsetX + x*mSpacing, 0.5 + mSpacing, offsetZ + z*mSpacing, materials.coneWafer);
                 }
             }
-
             for(let x=-1; x<=1; x++) {
                 for(let z=-1; z<=1; z++) {
                     spawnLargeCube(offsetX + x*mSpacing, 0.5 + 2*mSpacing, offsetZ + z*mSpacing, materials.coneWafer);
                 }
             }
-
-            // Ice Cream Scoop (Massive block chunk)
             for(let y=3; y<=4; y++) {
                 for(let x=-1; x<=1; x++) {
                     for(let z=-1; z<=1; z++) {
@@ -1200,24 +1256,209 @@
                     }
                 }
             }
-            // Top point of the scoop
             spawnLargeCube(offsetX, 0.5 + 5*mSpacing, offsetZ, flavorMat);
         }
 
         function buildLollipop(offsetX, offsetZ, candyMat) {
-            // White Stick (Detailed small blocks)
             for(let y=0; y<7; y++) {
                 spawnCube(offsetX, 0.5 + y*spacing, offsetZ, materials.stickWhite);
             }
-
-            // Giant Candy Swirl (Flat vertical disk made of small blocks)
             let headYBase = 6 * spacing; 
             for(let y=-2; y<=2; y++) {
                 for(let x=-2; x<=2; x++) {
-                    // Round the edges of the disk
                     if(Math.abs(x)===2 && Math.abs(y)===2) continue; 
-                    
                     spawnCube(offsetX + x*spacing, 0.5 + headYBase + y*spacing, offsetZ, candyMat);
+                }
+            }
+        }
+
+        // ==========================================
+        // LEVEL 6: GUITAR CENTER BUILDERS
+        // ==========================================
+        function buildGuitarCenter() {
+            // Colorful stage rugs scattered around
+            spawnDecorationTexturedPlane(5, 0.01, 5, 12, 12, 0x8A2BE2);
+            spawnDecorationTexturedPlane(-8, 0.01, -6, 14, 14, 0xFF00FF);
+            spawnDecorationTexturedPlane(0, 0.01, 10, 10, 20, 0x00FFFF);
+
+            const electricColors = [materials.candyRed, materials.planeBlue, materials.neonPink, materials.neonCyan, materials.stickWhite, materials.darkBuilding];
+
+            // Scatter Stratocasters
+            buildStratocaster(0, -5, materials.candyRed);
+            buildStratocaster(6, 4, materials.planeBlue);
+            buildStratocaster(-6, -2, materials.neonPink);
+            buildStratocaster(8, -8, materials.neonCyan);
+            buildStratocaster(-10, 5, materials.stickWhite);
+            buildStratocaster(10, 10, materials.guitarSunburst);
+
+            // Scatter Flying Vs
+            buildFlyingV(-4, -10, materials.darkBuilding);
+            buildFlyingV(10, 0, materials.candyRed);
+            buildFlyingV(-2, 8, materials.neonPink);
+            buildFlyingV(4, 12, materials.planeBlue);
+            buildFlyingV(-12, -4, materials.neonCyan);
+
+            // Scatter Acoustics
+            buildAcousticGuitar(2, 2);
+            buildAcousticGuitar(-8, -8);
+            buildAcousticGuitar(12, -5);
+            buildAcousticGuitar(-6, 12);
+            
+            // Scatter colorful guitar picks
+            for(let i=0; i<30; i++) {
+                let x = (Math.random() - 0.5) * 30;
+                let z = (Math.random() - 0.5) * 30;
+                let pickColor = electricColors[Math.floor(Math.random() * electricColors.length)];
+                spawnCube(x, 0.5, z, pickColor);
+            }
+        }
+
+        function buildStratocaster(offsetX, offsetZ, bodyMat) {
+            // Double cutaway body
+            for(let z=0; z<=4; z++) {
+                for(let x=-2; x<=2; x++) {
+                    if ((z===0 && Math.abs(x)===2) || (z===3 && Math.abs(x)===2) || (z===4 && Math.abs(x)>0)) continue;
+                    spawnCube(offsetX + x*spacing, 0.5, offsetZ + z*spacing, bodyMat);
+                }
+            }
+            // Pickguard (white details)
+            spawnCube(offsetX, 0.6, offsetZ + 1*spacing, materials.stickWhite);
+            spawnCube(offsetX, 0.6, offsetZ + 2*spacing, materials.stickWhite);
+            
+            // Neck & Headstock
+            for(let z=-5; z<0; z++) spawnCube(offsetX, 0.5, offsetZ + z*spacing, materials.woodDark);
+            spawnCube(offsetX, 0.5, offsetZ - 6*spacing, materials.woodPine);
+            spawnCube(offsetX + spacing, 0.5, offsetZ - 6*spacing, materials.woodPine);
+        }
+
+        function buildFlyingV(offsetX, offsetZ, bodyMat) {
+            // V-Shape body
+            for(let z=0; z<=5; z++) {
+                let width = Math.floor(z / 2) + 1; 
+                for(let x=-width; x<=width; x++) {
+                    if (z > 2 && Math.abs(x) < Math.floor((z-1)/2)) continue; 
+                    spawnCube(offsetX + x*spacing, 0.5, offsetZ + z*spacing, bodyMat);
+                }
+            }
+            // Neck & Pointy Headstock
+            for(let z=-5; z<0; z++) spawnCube(offsetX, 0.5, offsetZ + z*spacing, materials.woodDark);
+            spawnCube(offsetX, 0.5, offsetZ - 6*spacing, materials.woodDark);
+        }
+
+        function buildAcousticGuitar(offsetX, offsetZ) {
+            // Figure 8 body shape
+            for(let z=0; z<=6; z++) {
+                let r = (z===2 || z===3) ? 1 : 2;
+                if (z===0 || z===6) r = 1;
+                for(let x=-r; x<=r; x++) {
+                    if (z===2 && x===0) {
+                        spawnCube(offsetX, 0.5, offsetZ + z*spacing, materials.darkBuilding); // Sound hole
+                    } else {
+                        spawnCube(offsetX + x*spacing, 0.5, offsetZ + z*spacing, materials.woodPine);
+                    }
+                }
+            }
+            // Neck & Headstock
+            for(let z=-5; z<0; z++) spawnCube(offsetX, 0.5, offsetZ + z*spacing, materials.woodDark);
+            spawnCube(offsetX, 0.5, offsetZ - 6*spacing, materials.woodDark);
+            spawnCube(offsetX + spacing, 0.5, offsetZ - 6*spacing, materials.woodDark);
+            spawnCube(offsetX - spacing, 0.5, offsetZ - 6*spacing, materials.woodDark);
+        }
+
+        // ==========================================
+        // LEVEL 7: LUSH FOREST BUILDERS
+        // ==========================================
+        function buildLushForest() {
+            // Winding dirt path
+            spawnDecorationTexturedPlane(0, 0.01, 0, 4, 30, 0x4A3728);
+
+            // Log cabin in center
+            buildCabin(0, 0, 0);
+
+            // Procedural Forest Generation
+            for(let i=0; i<12; i++) {
+                let x = (Math.random() - 0.5) * 35;
+                let z = (Math.random() - 0.5) * 35;
+                // Keep path and cabin clear
+                if(Math.abs(x) < 4 || (Math.abs(x) < 6 && Math.abs(z) < 6)) continue; 
+                
+                if (Math.random() > 0.4) {
+                    buildPineTree(x, z);
+                } else {
+                    buildOakTree(x, z);
+                }
+            }
+
+            // Scatter Rocks
+            for(let i=0; i<8; i++) {
+                let x = (Math.random() - 0.5) * 30;
+                let z = (Math.random() - 0.5) * 30;
+                if(Math.abs(x) < 3 || (Math.abs(x) < 6 && Math.abs(z) < 6)) continue;
+                buildRockCluster(x, z);
+            }
+        }
+
+        function buildCabin(offsetX, offsetY, offsetZ) {
+            // Cabin Walls (Using small cubes for detail)
+            for(let y=0; y<4; y++) {
+                for(let x=-3; x<=3; x++) {
+                    for(let z=-3; z<=3; z++) {
+                        // Hollow interior
+                        if(Math.abs(x)<3 && Math.abs(z)<3) continue;
+                        // Doorway
+                        if(z===-3 && Math.abs(x)<=1 && y<3) continue;
+                        spawnCube(offsetX + x*spacing, offsetY + 0.5 + y*spacing, offsetZ + z*spacing, materials.woodDark);
+                    }
+                }
+            }
+            // Slanted Roof (Using Large blocks for performance)
+            spawnLargeCube(offsetX, offsetY + 0.5 + 4*spacing, offsetZ, materials.woodPine);
+            spawnLargeCube(offsetX - mSpacing, offsetY + 0.5 + 4*spacing, offsetZ, materials.woodPine);
+            spawnLargeCube(offsetX + mSpacing, offsetY + 0.5 + 4*spacing, offsetZ, materials.woodPine);
+            spawnLargeCube(offsetX, offsetY + 0.5 + 4*spacing + mSpacing, offsetZ, materials.woodPine); // Top peak
+        }
+
+        function buildPineTree(offsetX, offsetZ) {
+            // Trunk
+            spawnLargeCube(offsetX, 0.5, offsetZ, materials.woodDark);
+            
+            // Pine Foliage (Using Large Blocks)
+            for(let y=1; y<=3; y++) {
+                let w = (4-y);
+                for(let x=-w; x<=w; x++) {
+                    for(let z=-w; z<=w; z++) {
+                        if(Math.abs(x)===w && Math.abs(z)===w) continue; // Round the layers
+                        spawnLargeCube(offsetX + x*mSpacing, 0.5 + y*mSpacing, offsetZ + z*mSpacing, materials.leafDark);
+                    }
+                }
+            }
+        }
+
+        function buildOakTree(offsetX, offsetZ) {
+            // Thick Trunk
+            spawnLargeCube(offsetX, 0.5, offsetZ, materials.woodDark);
+            spawnLargeCube(offsetX, 0.5 + mSpacing, offsetZ, materials.woodDark);
+            
+            // Bushy Foliage
+            for(let y=2; y<=3; y++) {
+                for(let x=-1; x<=1; x++) {
+                    for(let z=-1; z<=1; z++) {
+                        // Random gaps for organic look
+                        if (Math.random() > 0.8) continue;
+                        spawnLargeCube(offsetX + x*mSpacing, 0.5 + y*mSpacing, offsetZ + z*mSpacing, materials.leafLight);
+                    }
+                }
+            }
+        }
+
+        function buildRockCluster(offsetX, offsetZ) {
+            let count = Math.floor(Math.random() * 3) + 1;
+            for(let i=0; i<count; i++) {
+                // Mix large and small rocks
+                if (Math.random() > 0.5) {
+                    spawnLargeCube(offsetX + (Math.random()-0.5)*mSpacing, 0.5, offsetZ + (Math.random()-0.5)*mSpacing, materials.stoneGray);
+                } else {
+                    spawnCube(offsetX + (Math.random()-0.5)*spacing*3, 0.5, offsetZ + (Math.random()-0.5)*spacing*3, materials.stoneGray);
                 }
             }
         }
@@ -1226,12 +1467,10 @@
         // MAIN GAME LOGIC LOOP
         // ==========================================
         function handleGameLogic() {
-            // 1. Update Hole Position based on Mouse/Touch
             raycaster.setFromCamera(mouse, camera);
             let target = new THREE.Vector3();
             raycaster.ray.intersectPlane(groundPlane, target);
             if (target) {
-                // Smooth follow
                 holeMesh.position.x += (target.x - holeMesh.position.x) * 0.2;
                 holeMesh.position.z += (target.z - holeMesh.position.z) * 0.2;
             }
@@ -1239,29 +1478,24 @@
             const thresholdSetting = parseInt(document.getElementById('threshold-slider').value);
             const multiplierSetting = parseFloat(document.getElementById('multiplier-slider').value);
 
-            // 2. Check Cubes
             for (let i = cubes.length - 1; i >= 0; i--) {
                 let cube = cubes[i];
 
-                // Sync Visuals to Physics
                 cube.mesh.position.copy(cube.body.position);
                 cube.mesh.quaternion.copy(cube.body.quaternion);
 
-                // Calculate horizontal distance from cube center to hole center
                 let dx = cube.mesh.position.x - holeMesh.position.x;
                 let dz = cube.mesh.position.z - holeMesh.position.z;
                 let distance = Math.sqrt(dx*dx + dz*dz);
 
-                // PERFORMANCE OPTIMIZATION: Wake up physics only when the hole is close
                 let activationRadius = currentRadius * 3.5;
                 if (cube.body.mass === 0 && distance < activationRadius) {
-                    cube.body.mass = cube.isLargeBlock ? 2.5 : 0.5; // Large blocks are heavier
+                    cube.body.mass = cube.isLargeBlock ? 2.5 : 0.5; 
                     cube.body.type = CANNON.Body.DYNAMIC;
                     cube.body.updateMassProperties();
                     cube.body.wakeUp();
                 }
 
-                // CATCH EXTREME VELOCITY: Force a speed limit on awakened blocks
                 if (!cube.isFalling) {
                     let speed = cube.body.velocity.length();
                     if (speed > 12) {
@@ -1269,43 +1503,35 @@
                     }
                 }
 
-                // Check for safety bounds (Tightened to match the camera viewport perfectly!)
                 let isOutOfBounds = cube.mesh.position.x > 25 || 
                                     cube.mesh.position.x < -25 || 
                                     cube.mesh.position.z > 18 || 
                                     cube.mesh.position.z < -25 || 
                                     cube.mesh.position.y > 15;
 
-                // Trigger: SUCK IN
                 if (!cube.isFalling && distance < currentRadius * 1.1) {
                     cube.isFalling = true;
-                    // The Magic Trick: Remove collision with the Ground Group!
                     cube.body.collisionFilterMask = CUBE_GROUP; 
                 }
 
-                // Apply sucking physics
                 if (cube.isFalling) {
-                    // Pull towards center
                     cube.body.velocity.x = -dx * 6;
                     cube.body.velocity.z = -dz * 6;
-                    // Force downward
                     cube.body.velocity.y = -8;
 
-                    // Visually shrink it
                     if (cube.mesh.scale.x > 0.1) {
                         cube.mesh.scale.multiplyScalar(0.9);
                     }
                 }
 
-                // Remove if it falls too deep OR flies out of bounds
                 if (cube.mesh.position.y < -3 || isOutOfBounds) {
                     scene.remove(cube.mesh);
                     world.remove(cube.body);
                     cubes.splice(i, 1);
                     
-                    score++; // Automatically counts toward the score, even if out of bounds
+                    score++; 
                     updateUI();
-                    playEatSound(); // <-- Synthesized Eat Sound
+                    playEatSound(); 
                     
                     // Check Growth
                     if (score - lastScaleScore >= thresholdSetting) {
@@ -1313,16 +1539,21 @@
                         lastScaleScore = score;
                         currentRadius *= multiplierSetting;
                         updateUI();
-                        // Animate scale up
                         holeMesh.scale.set(currentRadius, currentRadius, 1);
-                        playGrowSound(); // <-- Synthesized Growth Sound
+                        playGrowSound(); 
                     }
 
                     // Check Win Condition
                     if (cubes.length === 0 && isPlaying) {
                         isPlaying = false;
-                        showLevelComplete();
-                        playVictorySound(); // <-- Synthesized Win Sound
+                        
+                        if (currentLevelIndex >= levels.length - 1) {
+                            showGameComplete();
+                        } else {
+                            showLevelComplete();
+                        }
+                        
+                        playVictorySound(); 
                     }
                 }
             }
@@ -1330,6 +1561,11 @@
 
         function showLevelComplete() {
             const overlay = document.getElementById('level-complete-overlay');
+            overlay.style.display = 'flex';
+        }
+
+        function showGameComplete() {
+            const overlay = document.getElementById('game-complete-overlay');
             overlay.style.display = 'flex';
         }
 
