@@ -313,7 +313,7 @@
         let raycaster = new THREE.Raycaster();
         let groundPlane; // Mathematical plane for raycasting
         
-        // Gameplay Stats
+        // --- Gameplay Stats ---
         let isPlaying = true;
         let score = 0;
         let sizeLevel = 1;
@@ -353,8 +353,14 @@
                 }
             };
 
-            ['pointerdown', 'touchstart', 'mousedown', 'keydown', 'mousemove', 'touchmove'].forEach(evt => {
+            // Passive listeners for move events to maintain 60fps performance
+            ['mousemove', 'touchmove'].forEach(evt => {
                 document.addEventListener(evt, unlockAudio, { passive: true });
+            });
+            
+            // Standard listeners for interaction events so they don't break preventDefault() downstream
+            ['pointerdown', 'touchstart', 'mousedown', 'keydown'].forEach(evt => {
+                document.addEventListener(evt, unlockAudio);
             });
         }
 
@@ -520,8 +526,10 @@
             });
 
             window.addEventListener('keydown', (e) => {
-                if (e.ctrlKey && (e.key === 'l' || e.key === 'L')) {
+                // Support Ctrl + L, and also Alt + L as a fallback in case the browser forces focus to the address bar
+                if ((e.ctrlKey || e.altKey) && (e.key === 'l' || e.key === 'L' || e.code === 'KeyL')) {
                     e.preventDefault();
+                    e.stopPropagation();
                     const debugPanel = document.getElementById('debug-controls');
                     
                     if (debugPanel.style.display === 'none' || debugPanel.style.display === '') {
@@ -688,12 +696,13 @@
             engineBlack: new THREE.MeshLambertMaterial({ color: 0x222222 }),
             heliGreen: new THREE.MeshLambertMaterial({ color: 0x4A5D23 }),
 
-            // Level 3 (Cyberpunk)
+            // Level 3 (New York City)
             darkBuilding: new THREE.MeshLambertMaterial({ color: 0x111115 }),
             windowGlow: new THREE.MeshBasicMaterial({ color: 0xFFFF88 }),
             neonPink: new THREE.MeshBasicMaterial({ color: 0xFF00FF }),
             neonCyan: new THREE.MeshBasicMaterial({ color: 0x00FFFF }),
-            neonPurple: new THREE.MeshBasicMaterial({ color: 0x8A2BE2 }),
+            concrete: new THREE.MeshLambertMaterial({ color: 0x888888 }),
+            taxiYellow: new THREE.MeshLambertMaterial({ color: 0xFFD700 }),
 
             // Level 4 (Battlefield)
             sandDark: new THREE.MeshLambertMaterial({ color: 0xC2B280 }),
@@ -721,7 +730,30 @@
             leafDark: new THREE.MeshLambertMaterial({ color: 0x1E4D2B }),
             leafLight: new THREE.MeshLambertMaterial({ color: 0x4C9A2A }),
             woodPine: new THREE.MeshLambertMaterial({ color: 0x4A3728 }),
-            stoneGray: new THREE.MeshLambertMaterial({ color: 0x808080 })
+            stoneGray: new THREE.MeshLambertMaterial({ color: 0x808080 }),
+
+            // Level 8 (Disney Land)
+            mickeyBlack: new THREE.MeshLambertMaterial({ color: 0x111111 }),
+            castlePink: new THREE.MeshLambertMaterial({ color: 0xFFB6C1 }),
+            castleBlue: new THREE.MeshLambertMaterial({ color: 0x4169E1 }),
+            magicGold: new THREE.MeshLambertMaterial({ color: 0xFFD700 }),
+
+            // Level 9 (Sea World)
+            waterBlue: new THREE.MeshLambertMaterial({ color: 0x006994 }),
+            shipWood: new THREE.MeshLambertMaterial({ color: 0x5C4033 }),
+            sailWhite: new THREE.MeshLambertMaterial({ color: 0xF5F5F5 }),
+            mastBlack: new THREE.MeshLambertMaterial({ color: 0x222222 }),
+
+            // Level 10 (Race Track)
+            asphalt: new THREE.MeshLambertMaterial({ color: 0x333333 }),
+            curbRed: new THREE.MeshLambertMaterial({ color: 0xCC0000 }),
+            curbWhite: new THREE.MeshLambertMaterial({ color: 0xEEEEEE }),
+            ferrariRed: new THREE.MeshLambertMaterial({ color: 0xFF2800 }),
+            bugattiBlue: new THREE.MeshLambertMaterial({ color: 0x0055FF }),
+            f1Body: new THREE.MeshLambertMaterial({ color: 0xBB0000 }),
+            f1Wing: new THREE.MeshLambertMaterial({ color: 0x111111 }),
+            tireBlack: new THREE.MeshLambertMaterial({ color: 0x151515 }),
+            glassDark: new THREE.MeshLambertMaterial({ color: 0x222222 })
         };
 
         function spawnCube(x, y, z, material) {
@@ -802,16 +834,16 @@
                 threshold: 20
             },
             {
-                title: "Cyberpunk City",
-                bgColor: 0x2a3040, // Gray-blueish night sky
-                buildFunc: buildCity,
+                title: "New York City",
+                bgColor: 0x1a1a2e, // Evening twilight sky
+                buildFunc: buildNewYork,
                 threshold: 25
             },
             {
                 title: "Battlefield",
                 bgColor: 0xE6D0AB, // Desert sand color
                 buildFunc: buildBattlefield,
-                threshold: 30
+                threshold: 24
             },
             {
                 title: "Sugar Rush",
@@ -830,6 +862,24 @@
                 bgColor: 0x243b25, // Deep forest green
                 buildFunc: buildLushForest,
                 threshold: 18
+            },
+            {
+                title: "Disney Land",
+                bgColor: 0x191970, // Midnight magic blue
+                buildFunc: buildDisneyLand,
+                threshold: 20 // Updated as per request
+            },
+            {
+                title: "Sea World",
+                bgColor: 0x006994, // Deep ocean blue
+                buildFunc: buildSeaWorld,
+                threshold: 25 // Ships contain lots of small cubes, nicely balanced
+            },
+            {
+                title: "Race Track",
+                bgColor: 0x333333, // Asphalt dark gray
+                buildFunc: buildRaceTrack,
+                threshold: 15 // Dense with detailed cars and barriers
             }
         ];
 
@@ -1072,39 +1122,145 @@
         }
 
         // ==========================================
-        // LEVEL 3: CYBERPUNK CITY BUILDERS
+        // LEVEL 3: NEW YORK CITY BUILDERS
         // ==========================================
-        function buildCity() {
-            spawnDecorationTexturedPlane(0, 0.01, 0, 30, 30, 0x2a3040); 
-            for (let i = -10; i <= 10; i += 5) {
-                spawnDecorationTexturedPlane(i, 0.02, 0, 0.2, 30, 0xFF00FF); 
-                spawnDecorationTexturedPlane(0, 0.02, i, 30, 0.2, 0x00FFFF); 
+        function buildNewYork() {
+            // Street Grids (Asphalt)
+            spawnDecorationTexturedPlane(0, 0.01, 0, 40, 40, 0x111111); 
+            // Crosswalks / Road lines
+            for (let i = -15; i <= 15; i += 5) {
+                spawnDecorationTexturedPlane(i, 0.02, 0, 0.2, 40, 0xDDDDDD); // Vertical lines
+                spawnDecorationTexturedPlane(0, 0.02, i, 40, 0.2, 0xDDDDDD); // Horizontal lines
             }
 
-            buildSkyscraper(-8, 0, -8, 5, 5, 12, materials.neonPink);
-            buildSkyscraper(4, 0, -6, 4, 4, 18, materials.neonCyan);
-            buildSkyscraper(-6, 0, 6, 6, 4, 10, materials.neonPurple);
-            buildSkyscraper(6, 0, 5, 5, 5, 15, materials.neonCyan);
-            buildSkyscraper(-1, 0, -1, 4, 4, 6, materials.neonPink);
+            // Times Square in the center
+            buildTimesSquare(0, 0);
+
+            // Iconic Skyline
+            buildEmpireTower(-8, -8);
+            buildEmpireTower(8, 8);
+            buildChryslerTower(8, -8);
+            buildChryslerTower(-8, 8);
+            
+            // Standard Skyscrapers
+            buildNYSkyscraper(-12, 0, 4, 4, 10);
+            buildNYSkyscraper(12, 0, 4, 4, 12);
+            buildNYSkyscraper(0, -12, 5, 3, 8);
+
+            // Scatter Yellow Taxis
+            buildTaxi(-4, -2, false);
+            buildTaxi(4, 2, true);
+            buildTaxi(-2, 8, false);
+            buildTaxi(10, -2, true);
+            buildTaxi(-10, -4, false);
         }
 
-        function buildSkyscraper(offsetX, offsetY, offsetZ, widthL, depthL, heightL, accentMat) {
-            for(let y = 0; y < heightL; y++) {
-                for(let x = 0; x < widthL; x++) {
-                    for(let z = 0; z < depthL; z++) {
-                        if (x > 0 && x < widthL - 1 && z > 0 && z < depthL - 1) continue;
-
+        function buildTimesSquare(offsetX, offsetZ) {
+            // A bright glowing centerpiece building
+            for(let y=0; y<10; y++) {
+                for(let x=-2; x<=2; x++) {
+                    for(let z=-2; z<=2; z++) {
+                        if (Math.abs(x)===2 && Math.abs(z)===2) continue; // Round off
+                        if (x===0 && z===0) continue; // Hollow core
+                        
                         let mat = materials.darkBuilding;
-                        if (y > 0 && y % 4 === 0) {
-                            mat = accentMat; 
-                        } else if (y % 2 !== 0 && (x === 1 || x === widthL - 2 || z === 1 || z === depthL - 2)) {
-                            mat = materials.windowGlow; 
+                        // Massive glowing billboards
+                        if (y > 2 && y < 8 && (Math.abs(x)===2 || Math.abs(z)===2)) {
+                            let r = Math.random();
+                            if (r > 0.6) mat = materials.neonCyan;
+                            else if (r > 0.3) mat = materials.neonPink;
+                            else mat = materials.windowGlow;
                         }
-
-                        spawnCube(offsetX + x * spacing, offsetY + 0.5 + y * spacing, offsetZ + z * spacing, mat);
+                        spawnCube(offsetX + x*spacing, 0.5 + y*spacing, offsetZ + z*spacing, mat);
                     }
                 }
             }
+            // Antenna on top
+            spawnCube(offsetX, 0.5 + 10*spacing, offsetZ, materials.metalGray);
+            spawnCube(offsetX, 0.5 + 11*spacing, offsetZ, materials.windowGlow);
+        }
+
+        function buildEmpireTower(offsetX, offsetZ) {
+            // Base (wide)
+            for(let y=0; y<6; y++) {
+                for(let x=-2; x<=2; x++) {
+                    for(let z=-2; z<=2; z++) {
+                        if (Math.abs(x)<2 && Math.abs(z)<2) continue; // Hollow
+                        let mat = (y%2!==0 && (x===0||z===0)) ? materials.windowGlow : materials.concrete;
+                        spawnCube(offsetX + x*spacing, 0.5 + y*spacing, offsetZ + z*spacing, mat);
+                    }
+                }
+            }
+            // Mid (narrower)
+            for(let y=6; y<12; y++) {
+                for(let x=-1; x<=1; x++) {
+                    for(let z=-1; z<=1; z++) {
+                        if (x===0 && z===0) continue; // Hollow
+                        let mat = (y%2!==0 && (x===0||z===0)) ? materials.windowGlow : materials.concrete;
+                        spawnCube(offsetX + x*spacing, 0.5 + y*spacing, offsetZ + z*spacing, mat);
+                    }
+                }
+            }
+            // Spire
+            for(let y=12; y<16; y++) {
+                spawnCube(offsetX, 0.5 + y*spacing, offsetZ, materials.metalGray);
+            }
+        }
+
+        function buildChryslerTower(offsetX, offsetZ) {
+            // Base
+            for(let y=0; y<8; y++) {
+                for(let x=-2; x<=2; x++) {
+                    for(let z=-2; z<=2; z++) {
+                        if (Math.abs(x)<2 && Math.abs(z)<2) continue; // Hollow
+                        let mat = materials.concrete;
+                        if (y%3===0 && (x===1 || z===1)) mat = materials.windowGlow;
+                        spawnCube(offsetX + x*spacing, 0.5 + y*spacing, offsetZ + z*spacing, mat);
+                    }
+                }
+            }
+            // Terraced Crown (Iconic metallic arches)
+            for(let y=8; y<11; y++) {
+                let r = 11 - y; // 3, 2, 1
+                for(let x=-r; x<=r; x++) {
+                    for(let z=-r; z<=r; z++) {
+                        if (x===0 && z===0 && y!==10) continue;
+                        spawnCube(offsetX + x*spacing, 0.5 + y*spacing, offsetZ + z*spacing, materials.metalGray);
+                    }
+                }
+            }
+            // Spire
+            for(let y=11; y<15; y++) {
+                spawnCube(offsetX, 0.5 + y*spacing, offsetZ, materials.metalGray);
+            }
+        }
+
+        function buildNYSkyscraper(offsetX, offsetZ, widthL, depthL, heightL) {
+            for(let y=0; y<heightL; y++) {
+                for(let x=0; x<widthL; x++) {
+                    for(let z=0; z<depthL; z++) {
+                        if (x>0 && x<widthL-1 && z>0 && z<depthL-1) continue; // Hollow
+
+                        let mat = materials.darkBuilding;
+                        if (y%2!==0 && (x===1 || z===1)) mat = materials.windowGlow;
+
+                        spawnCube(offsetX + x*spacing, 0.5 + y*spacing, offsetZ + z*spacing, mat);
+                    }
+                }
+            }
+        }
+
+        function buildTaxi(offsetX, offsetZ, isRotated) {
+            for(let x=0; x<3; x++) {
+                for(let z=0; z<2; z++) {
+                    let rx = isRotated ? z : x;
+                    let rz = isRotated ? x : z;
+                    spawnCube(offsetX + rx*spacing, 0.5, offsetZ + rz*spacing, materials.taxiYellow);
+                }
+            }
+            // Cabin
+            spawnCube(offsetX + (isRotated?0:1)*spacing, 0.5 + spacing, offsetZ + (isRotated?1:0)*spacing, materials.glassDark);
+            spawnCube(offsetX + (isRotated?1:1)*spacing, 0.5 + spacing, offsetZ + (isRotated?0:1)*spacing, materials.glassDark);
         }
 
         // ==========================================
@@ -1471,6 +1627,264 @@
         }
 
         // ==========================================
+        // LEVEL 8: DISNEY LAND BUILDERS
+        // ==========================================
+        function buildDisneyLand() {
+            // Magical glowing pathways
+            spawnDecorationTexturedPlane(0, 0.01, 0, 8, 40, 0xFFD700);
+
+            // Centerpiece: Giant Mickey Head
+            buildMickeyHead(0, -10);
+
+            // Disney Castles
+            buildCastle(-8, 5);
+            buildCastle(8, 5);
+
+            // Teacup Rides
+            buildTeacup(6, -4, materials.castlePink);
+            buildTeacup(-6, -4, materials.castleBlue);
+            buildTeacup(4, -10, materials.neonCyan);
+            buildTeacup(-4, -10, materials.neonPurple);
+        }
+
+        function buildMickeyHead(offsetX, offsetZ) {
+            // Main Head (Giant Sphere using Large Cubes)
+            for(let y=0; y<=4; y++) {
+                for(let x=-2; x<=2; x++) {
+                    for(let z=-1; z<=1; z++) {
+                        // Round the corners to make it spherical
+                        if ((Math.abs(x)===2 && (y===0 || y===4)) || (Math.abs(x)===2 && Math.abs(z)===1)) continue;
+                        spawnLargeCube(offsetX + x*mSpacing, 0.5 + y*mSpacing, offsetZ + z*mSpacing, materials.mickeyBlack);
+                    }
+                }
+            }
+            
+            // Left & Right Ears
+            for(let ey=3; ey<=5; ey++) {
+                for(let ex=2; ex<=4; ex++) {
+                    // Round the ears
+                    if ((ex===4 && ey===5) || (ex===4 && ey===3)) continue;
+                    
+                    // Right Ear
+                    spawnLargeCube(offsetX + ex*mSpacing, 0.5 + ey*mSpacing, offsetZ, materials.mickeyBlack);
+                    // Left Ear
+                    spawnLargeCube(offsetX - ex*mSpacing, 0.5 + ey*mSpacing, offsetZ, materials.mickeyBlack);
+                }
+            }
+        }
+
+        function buildCastle(offsetX, offsetZ) {
+            // Castle Base
+            for(let y=0; y<4; y++) {
+                for(let x=-2; x<=2; x++) {
+                    for(let z=-2; z<=2; z++) {
+                        // Hollow interior and arched doorway
+                        if (Math.abs(x)<2 && Math.abs(z)<2) continue;
+                        if (z===2 && Math.abs(x)<=1 && y<2) continue; // Door
+                        
+                        spawnLargeCube(offsetX + x*mSpacing, 0.5 + y*mSpacing, offsetZ + z*mSpacing, materials.castlePink);
+                    }
+                }
+            }
+            
+            // Castle Towers (4 corners)
+            for(let tx of [-2, 2]) {
+                for(let tz of [-2, 2]) {
+                    // Tower body
+                    for(let y=4; y<7; y++) {
+                        spawnLargeCube(offsetX + tx*mSpacing, 0.5 + y*mSpacing, offsetZ + tz*mSpacing, materials.castlePink);
+                    }
+                    // Blue pointed roofs
+                    spawnLargeCube(offsetX + tx*mSpacing, 0.5 + 7*mSpacing, offsetZ + tz*mSpacing, materials.castleBlue);
+                    spawnCube(offsetX + tx*mSpacing, 0.5 + 8*mSpacing + spacing, offsetZ + tz*mSpacing, materials.castleBlue);
+                }
+            }
+        }
+
+        function buildTeacup(offsetX, offsetZ, colorMat) {
+            // Teacup base
+            for(let x=-2; x<=2; x++) {
+                for(let z=-2; z<=2; z++) {
+                    if (Math.abs(x)===2 && Math.abs(z)===2) continue;
+                    spawnCube(offsetX + x*spacing, 0.5, offsetZ + z*spacing, materials.magicGold);
+                }
+            }
+            // Teacup walls
+            for(let y=1; y<=3; y++) {
+                let r = y===3 ? 3 : 2; // Widens at the top
+                for(let x=-r; x<=r; x++) {
+                    for(let z=-r; z<=r; z++) {
+                        if (Math.abs(x)<r && Math.abs(z)<r) continue; // Hollow inside
+                        if (Math.abs(x)===r && Math.abs(z)===r) continue; // Round edges
+                        spawnCube(offsetX + x*spacing, 0.5 + y*spacing, offsetZ + z*spacing, colorMat);
+                    }
+                }
+            }
+        }
+
+        // ==========================================
+        // LEVEL 9: SEA WORLD BUILDERS
+        // ==========================================
+        function buildSeaWorld() {
+            // Rippling water effect using overlapping textured planes
+            spawnDecorationTexturedPlane(0, 0.01, 0, 60, 60, 0x005580);
+            spawnDecorationTexturedPlane(0, 0.02, 0, 40, 40, 0x006994);
+            
+            // Wooden Pier
+            buildPier(-10, 0);
+
+            // Giant Galleon Ships
+            buildGalleon(4, -4);
+            buildGalleon(-2, 8);
+
+            // Small Rafts/Lifeboats
+            buildRaft(8, 8);
+            buildRaft(10, 2);
+            buildRaft(-6, -10);
+            buildRaft(0, -12);
+        }
+
+        function buildPier(offsetX, offsetZ) {
+            // Long wooden dock
+            for(let y=0; y<2; y++) {
+                for(let z=-12; z<=12; z++) {
+                    for(let x=-1; x<=1; x++) {
+                        // Pillars reaching into the water
+                        if (y===0 && Math.abs(x)===1 && z%4!==0) continue; 
+                        spawnLargeCube(offsetX + x*mSpacing, 0.5 + y*mSpacing, offsetZ + z*mSpacing, materials.woodDark);
+                    }
+                }
+            }
+        }
+
+        function buildGalleon(offsetX, offsetZ) {
+            // Hull Bottom
+            for(let y=0; y<3; y++) {
+                let length = 5 + y; // Gets longer at the top
+                for(let z=-length; z<=length; z++) {
+                    for(let x=-2; x<=2; x++) {
+                        // Pointy front and back
+                        if (Math.abs(x)===2 && Math.abs(z)>=length-1) continue; 
+                        // Hollow out the deck
+                        if (y===2 && Math.abs(x)<2 && Math.abs(z)<length-2) continue;
+
+                        spawnCube(offsetX + x*spacing, 0.5 + y*spacing, offsetZ + z*spacing, materials.shipWood);
+                    }
+                }
+            }
+            
+            // Back Captain's Quarters (Raised Deck)
+            for(let y=3; y<=4; y++) {
+                for(let z=5; z<=7; z++) {
+                    for(let x=-2; x<=2; x++) {
+                        if (y===4 && Math.abs(x)<2 && z<7) continue; // Hollow rail
+                        spawnCube(offsetX + x*spacing, 0.5 + y*spacing, offsetZ + z*spacing, materials.shipWood);
+                    }
+                }
+            }
+
+            // Tall Masts
+            for(let y=3; y<12; y++) {
+                // Front Mast
+                spawnCube(offsetX, 0.5 + y*spacing, offsetZ - 3*spacing, materials.mastBlack);
+                // Main Mast
+                spawnCube(offsetX, 0.5 + y*spacing, offsetZ + 2*spacing, materials.mastBlack);
+            }
+
+            // Giant White Sails
+            for(let y=5; y<=10; y++) {
+                let sailWidth = y < 9 ? 4 : 2; // Sails taper at the top
+                for(let x=-sailWidth; x<=sailWidth; x++) {
+                    // Bowing effect (sails pushing forward in the wind)
+                    let bow = Math.abs(x) <= 2 ? 1 : 0; 
+                    
+                    // Front Sail
+                    spawnCube(offsetX + x*spacing, 0.5 + y*spacing, offsetZ - 3*spacing - bow*spacing, materials.sailWhite);
+                    // Main Sail
+                    spawnCube(offsetX + x*spacing, 0.5 + y*spacing, offsetZ + 2*spacing - bow*spacing, materials.sailWhite);
+                }
+            }
+        }
+
+        function buildRaft(offsetX, offsetZ) {
+            // Simple flat wooden raft
+            for(let x=-1; x<=1; x++) {
+                for(let z=-2; z<=2; z++) {
+                    spawnLargeCube(offsetX + x*mSpacing, 0.5, offsetZ + z*mSpacing, materials.woodPine);
+                }
+            }
+            // Tiny mast and sail
+            spawnCube(offsetX, 0.5 + mSpacing, offsetZ, materials.mastBlack);
+            spawnCube(offsetX, 0.5 + mSpacing + spacing, offsetZ, materials.mastBlack);
+            
+            spawnCube(offsetX - spacing, 0.5 + mSpacing, offsetZ + spacing, materials.sailWhite);
+            spawnCube(offsetX + spacing, 0.5 + mSpacing, offsetZ + spacing, materials.sailWhite);
+            spawnCube(offsetX, 0.5 + mSpacing + spacing, offsetZ + spacing, materials.sailWhite);
+        }
+
+        // ==========================================
+        // LEVEL 10: RACE TRACK BUILDERS
+        // ==========================================
+        function buildRaceTrack() {
+            // Track markings
+            for(let z=-15; z<=15; z+=3) {
+                spawnDecorationTexturedPlane(0, 0.01, z, 0.8, 1.5, 0xEEEEEE); // Center dashes
+            }
+
+            // Tire walls / Track barriers
+            buildTireWall(-12, 0);
+            buildTireWall(12, 0);
+
+            // Colorful F1 Cars
+            buildF1Car(-4, -12, materials.f1Body);        // Classic Crimson
+            buildF1Car(5, 0, materials.bugattiBlue);      // Blue
+            buildF1Car(-8, 12, materials.ferrariRed);     // Bright Red
+            buildF1Car(6, -6, materials.gym1);            // Gold/Yellow
+            buildF1Car(-6, 4, materials.neonCyan);        // Cyan
+            buildF1Car(4, 10, materials.neonPurple);      // Purple
+        }
+
+        function buildF1Car(offsetX, offsetZ, bodyMat) {
+            // Long narrow body
+            for(let z=-5; z<=5; z++) {
+                spawnCube(offsetX, 0.5, offsetZ + z*spacing, bodyMat);
+            }
+            // Cockpit
+            spawnCube(offsetX, 0.5 + spacing, offsetZ, materials.glassDark);
+            spawnCube(offsetX, 0.5 + spacing, offsetZ - spacing, bodyMat); // Airbox
+            
+            // Front wing
+            for(let x=-2; x<=2; x++) {
+                spawnCube(offsetX + x*spacing, 0.5, offsetZ + 5*spacing, materials.f1Wing);
+            }
+            // Rear wing
+            for(let x=-2; x<=2; x++) {
+                spawnCube(offsetX + x*spacing, 0.5 + 2*spacing, offsetZ - 5*spacing, materials.f1Wing);
+            }
+            
+            // Sidepods
+            spawnCube(offsetX + spacing, 0.5, offsetZ, bodyMat);
+            spawnCube(offsetX - spacing, 0.5, offsetZ, bodyMat);
+            spawnCube(offsetX + spacing, 0.5, offsetZ - spacing, bodyMat);
+            spawnCube(offsetX - spacing, 0.5, offsetZ - spacing, bodyMat);
+
+            // Exposed Wheels
+            spawnCube(offsetX - 2*spacing, 0.5, offsetZ + 3*spacing, materials.tireBlack);
+            spawnCube(offsetX + 2*spacing, 0.5, offsetZ + 3*spacing, materials.tireBlack);
+            spawnCube(offsetX - 2*spacing, 0.5, offsetZ - 3*spacing, materials.tireBlack);
+            spawnCube(offsetX + 2*spacing, 0.5, offsetZ - 3*spacing, materials.tireBlack);
+        }
+
+        function buildTireWall(offsetX, offsetZ) {
+            for(let y=0; y<3; y++) {
+                for(let z=-12; z<=12; z+=2) {
+                    spawnCube(offsetX, 0.5 + y*spacing, offsetZ + z*spacing, materials.curbRed);
+                    spawnCube(offsetX, 0.5 + y*spacing, offsetZ + (z+1)*spacing, materials.curbWhite);
+                }
+            }
+        }
+
+        // ==========================================
         // MAIN GAME LOGIC LOOP
         // ==========================================
         function handleGameLogic() {
@@ -1516,9 +1930,25 @@
                                     cube.mesh.position.z < -25 || 
                                     cube.mesh.position.y > 15;
 
+                // NEW MECHANIC: Determine if the hole is big enough for this block
+                let requiredRadius = cube.isLargeBlock ? 0.6 : 0.2;
+
                 if (!cube.isFalling && distance < currentRadius * 1.1) {
-                    cube.isFalling = true;
-                    cube.body.collisionFilterMask = CUBE_GROUP; 
+                    if (currentRadius >= requiredRadius) {
+                        // SUCK IN
+                        cube.isFalling = true;
+                        cube.body.collisionFilterMask = CUBE_GROUP; 
+                    } else {
+                        // REJECT: Block is too big! 
+                        // Pop it up and push it slightly outward to give physical "popcorn" feedback
+                        if (cube.body.velocity.y < 0.5) {
+                            cube.body.velocity.y = 2.5; 
+                            if (distance > 0.01) {
+                                cube.body.velocity.x += (dx / distance) * 0.6;
+                                cube.body.velocity.z += (dz / distance) * 0.6;
+                            }
+                        }
+                    }
                 }
 
                 if (cube.isFalling) {
