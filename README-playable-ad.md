@@ -1,6 +1,6 @@
 # Hole Eater MRAID playable
 
-`index.html` is a short playable ad built from the original game. The player drags the hole to eat 25 blocks, then sees an end card with links to [rman.online](https://rman.online) and [RmaNMetaverse on GitHub](https://github.com/RmaNMetaverse). The same links stay visible during play.
+`index.html` is an MRAID playable built from the original ten-level game. Players drag the hole to clear every block in each level. A Next Level screen appears between levels. Only after level ten is cleared does the final end card show links to [rman.online](https://rman.online) and [RmaNMetaverse on GitHub](https://github.com/RmaNMetaverse).
 
 ## Ad package
 
